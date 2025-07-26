@@ -1,9 +1,11 @@
+import { onRequest } from "firebase-functions/v2/https";
 import { Request, Response } from "express";
 import * as logger from "firebase-functions/logger";
 import fetch from "node-fetch";
 import { db } from "../lib/firebase";
 import { RAKUTEN_APPLICATION_ID } from "../config/secrets";
 
+// 🔧 メインのハンドラー関数（ロジック部分）
 export const fetchRakutenItemsHandler = async (req: Request, res: Response) => {
   const applicationId = RAKUTEN_APPLICATION_ID.value();
 
@@ -69,3 +71,9 @@ export const fetchRakutenItemsHandler = async (req: Request, res: Response) => {
     res.status(500).send("Error fetching from Rakuten API");
   }
 };
+
+// ✅ Cloud Functions v2 のエクスポート（公開トリガー）
+export const fetchRakutenItemsFunc = onRequest(
+  { cors: true },
+  fetchRakutenItemsHandler,
+);

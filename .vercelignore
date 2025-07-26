@@ -1,1 +1,26 @@
+# Firebase Functions 関連
+
 functions/
+
+# 開発用スクリプト
+
+scripts/
+tests/
+
+# Firebase 設定など（Vercel では使わない）
+
+.firebaserc
+firebase.json
+
+# ログ・キャッシュ・設定
+
+_.log
+_.env
+_.local
+_.bak
+node_modules/
+
+# ドキュメント・メモ
+
+README.md
+docs/

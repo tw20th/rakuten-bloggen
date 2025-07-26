@@ -1,27 +1,30 @@
-// functions/src/index.ts
 import { onRequest } from "firebase-functions/v2/https";
 
-// ハンドラーのインポート
+// 🔧 ハンドラーのインポート
 import { fetchRakutenItemsHandler } from "./scripts/fetchRakutenItems";
 import { generateBlogFromItemHandler } from "./scripts/generateBlogFromItem";
 
-// Secret定義のインポート
+// 🔐 Secret定義
 import { RAKUTEN_APPLICATION_ID, OPENAI_API_KEY } from "./config/secrets";
 
-// 商品取得関数（楽天API）
+// ✅ fetchRakutenItemsFunc：楽天APIから商品取得し Firestore に保存
 export const fetchRakutenItemsFunc = onRequest(
   {
     region: "asia-northeast1",
-    secrets: [RAKUTEN_APPLICATION_ID], // ✅ Secret明示
+    cors: true,
+    secrets: [RAKUTEN_APPLICATION_ID],
+    invoker: "public", // ←←← これが必要！！
   },
   fetchRakutenItemsHandler,
 );
 
-// ブログ生成関数（OpenAI）
+// ✅ generateBlogFromItemFunc：商品データからブログ記事を自動生成
 export const generateBlogFromItemFunc = onRequest(
   {
     region: "asia-northeast1",
-    secrets: [OPENAI_API_KEY], // ✅ Secret明示
+    cors: true,
+    secrets: [OPENAI_API_KEY],
+    invoker: "public", // ← こちらにも！
   },
   generateBlogFromItemHandler,
 );

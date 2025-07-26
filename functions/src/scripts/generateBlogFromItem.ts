@@ -1,17 +1,19 @@
-// functions/src/scripts/generateBlogFromItem.ts
+import { onRequest } from "firebase-functions/v2/https"; // ✅ 追加
 import { Request, Response } from "express";
 import * as logger from "firebase-functions/logger";
 import { db } from "../lib/firebase";
 import OpenAI from "openai";
 import { slugify } from "../utils/slugify";
-import { OPENAI_API_KEY } from "../config/secrets"; // ✅ Secret import
+import { OPENAI_API_KEY } from "../config/secrets";
 
+// 🔑 OpenAI クライアント初期化
 const getOpenAIClient = () => {
-  const apiKey = OPENAI_API_KEY.value(); // ✅ .value() で取得
+  const apiKey = OPENAI_API_KEY.value();
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
   return new OpenAI({ apiKey });
 };
 
+// 🧠 メイン処理ハンドラー
 export const generateBlogFromItemHandler = async (
   req: Request,
   res: Response,
@@ -21,7 +23,8 @@ export const generateBlogFromItemHandler = async (
 
     const openai = getOpenAIClient();
 
-    const { itemCode } = req.body;
+    // ✅ itemCode は GET でもテストしやすいように query 対応もしておくと便利
+    const itemCode = req.body?.itemCode || req.query.itemCode;
     if (!itemCode) {
       res.status(400).json({ error: "itemCode is required" });
       return;
@@ -60,3 +63,9 @@ export const generateBlogFromItemHandler = async (
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+// ✅ Cloud Functions として公開
+export const generateBlogFromItemFunc = onRequest(
+  { cors: true },
+  generateBlogFromItemHandler,
+);
