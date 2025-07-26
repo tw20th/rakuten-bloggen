@@ -1,36 +1,60 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
+# ===========================
+# 📦 依存ディレクトリ
+# ===========================
+node_modules/
+.pnp/
 .pnp.js
-.yarn/install-state.gz
+.yarn/
 
-# testing
-/coverage
+# ===========================
+# ⚒️ ビルド・出力ディレクトリ
+# ===========================
+.next/
+out/
+build/
 
-# next.js
-/.next/
-/out/
+# ===========================
+# ✅ テスト出力
+# ===========================
+coverage/
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# ===========================
+# 🐛 ログファイル
+# ===========================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# ===========================
+# 💻 OS 固有ファイル
+# ===========================
+.DS_Store
 
-# vercel
-.vercel
+# ===========================
+# 🔐 セキュリティファイル
+# ===========================
+.env
+.env.*
+*.pem
 
-# typescript
+# Firebase の serviceAccountキーなど
+keys/
+keys/*.json
+
+# ===========================
+# 🚀 Firebase / Vercel
+# ===========================
+.firebase/
+firebase-debug.log
+.vercel/
+.vercel/output.json
+
+# firebase config は除外しない
+!firebase.json
+!.firebaserc
+
+# ===========================
+# 🧠 TypeScript 関連
+# ===========================
 *.tsbuildinfo
 next-env.d.ts

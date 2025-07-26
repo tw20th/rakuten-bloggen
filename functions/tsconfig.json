@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "es2020", // もしくは "es2021", "es2022"。Cloud FunctionsのNode.jsランタイムがサポートする最新のものを選ぶと良いでしょう。
+    "module": "commonjs", // Node.jsのモジュールシステムはCommonJSです
+    "rootDir": "src", // ソースコードがあるディレクトリ
+    "outDir": "lib", // コンパイルされたJavaScriptが出力されるディレクトリ
+    "strict": true, // 厳密な型チェックを有効にします。これを入れるとコードの品質が高まります。
+    "esModuleInterop": true, // CommonJSモジュールをESモジュールのようにインポートできるようにします
+    "skipLibCheck": true, // 型定義ファイル（.d.ts）の型チェックをスキップします。コンパイル速度が上がります。
+    "forceConsistentCasingInFileNames": true, // ファイル名の大文字小文字の一貫性を強制します
+    "resolveJsonModule": true, // JSONファイルをモジュールとしてインポートできるようにします
+    "sourceMap": true, // ソースマップを生成します。デバッグ時にTypeScriptのソースコードとJavaScriptの実行コードを紐付けられます。
+    "declaration": false, // 型定義ファイル（.d.ts）を生成するかどうか。通常、Cloud Functionsでは不要です。
+    "moduleResolution": "node", // モジュールの解決方法。Node.js環境では"node"です。
+    "isolatedModules": true, // 各ファイルを個別のモジュールとしてコンパイルします。特定のトランスパイラと相性が良いです。
+    "lib": [
+      "es2020" // もしくは "es2021", "es2022"。ランタイムで利用可能なグローバルな型定義を指定します。
+    ],
+    "noImplicitAny": true, // 'any'型を暗黙的に使用することを禁止します。
+    "noImplicitThis": true, // 'this'の型が暗黙的に'any'になるのを禁止します。
+    "alwaysStrict": true // strictモードを常に有効にします。
+  },
+  "include": [
+    "src/**/*" // コンパイル対象のファイルパスを指定します
+  ],
+  "exclude": [
+    "node_modules", // コンパイルから除外するファイルパスを指定します
+    "eslint.config.js" // ← これを追加！
+
+  ]
+}
