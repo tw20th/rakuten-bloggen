@@ -41,3 +41,15 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - 画像ドメイン設定（next.config.mjs）を確認する
 - Firebase Admin 初期化済みか確認する
 - 各ページが想定データで動作するか確認する
+
+🛠 Vercel で Firebase Functions を除外する
+このプロジェクトでは functions/ 以下に Firebase Functions を配置していますが、Vercel のビルド対象に含める必要はありません。
+
+✅ 対応方法
+プロジェクトルートに .vercelignore を作成し、以下を記述します：
+
+functions/
+これで Vercel のデプロイ時に functions/ ディレクトリが無視され、不要なビルドエラーを防げます。
+
+❌ 注意
+vercel.json に excludeFiles を書くのは非対応なので使わないでください。
