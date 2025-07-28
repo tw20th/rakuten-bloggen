@@ -1,47 +1,30 @@
-// app/products/page.tsx
+// app/product/page.tsx
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useProducts } from "@/hooks/useProducts";
+import { ProductList } from "@/components/product/ProductList";
+import { useState } from "react";
 
-import { db } from "@/lib/firebase";
-import { ProductCard } from "@/components/product/ProductCard";
-import type { MonitoredItem, MonitoredItemDoc } from "@/types/monitoredItem";
+export default function ProductPage() {
+  const { products } = useProducts();
+  const [visibleCount, setVisibleCount] = useState(20);
 
-export default async function ProductListPage() {
-  const snapshot = await db
-    .collection("monitoredItems")
-    .orderBy("updatedAt", "desc")
-    .limit(20)
-    .get();
-
-  const products: MonitoredItem[] = snapshot.docs.map((doc) => {
-    const data = doc.data() as MonitoredItemDoc;
-    return {
-      id: doc.id,
-      productName: data.productName,
-      imageUrl: data.imageUrl,
-      price: data.price,
-      capacity: data.capacity,
-      outputPower: data.outputPower,
-      weight: data.weight,
-      hasTypeC: data.hasTypeC,
-      tags: data.tags ?? [],
-      featureHighlights: data.featureHighlights ?? [],
-      aiSummary: data.aiSummary ?? "",
-      priceHistory: data.priceHistory ?? [],
-      affiliateUrl: data.affiliateUrl,
-      createdAt: data.createdAt?.toMillis() ?? null,
-      updatedAt: data.updatedAt?.toMillis() ?? null,
-    };
-  });
+  const visibleProducts = products.slice(0, visibleCount);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">商品一覧</h1>
-      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-        {products.map((item) => (
-          <ProductCard key={item.id} item={item} />
-        ))}
-      </div>
+    <div className="max-w-6xl mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">モバイルバッテリー一覧</h1>
+      <ProductList items={visibleProducts} />
+      {visibleCount < products.length && (
+        <div className="flex justify-center mt-6">
+          <button
+            onClick={() => setVisibleCount((prev) => prev + 20)}
+            className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded shadow text-sm"
+          >
+            もっと見る
+          </button>
+        </div>
+      )}
     </div>
   );
 }
