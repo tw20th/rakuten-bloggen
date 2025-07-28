@@ -1,53 +1,26 @@
-# Firestore コレクション構成: rakutenItems
+# rakutenItems コレクション構成
 
-楽天 API から取得した商品情報を格納するコレクション。比較・記事生成の元データ。
+## ドキュメント ID
 
-## フィールド一覧
+- itemCode（楽天 API の商品コード）
 
-| フィールド名    | 型                      | 説明                                 |
-| --------------- | ----------------------- | ------------------------------------ |
-| `itemCode`      | `string`                | 楽天の商品コード（ユニーク）         |
-| `itemName`      | `string`                | 商品名（フル名称）                   |
-| `shortTitle`    | `string`                | サイト上で使う短縮タイトル           |
-| `displayName`   | `string`                | 表示用の商品名（任意）               |
-| `itemPrice`     | `number`                | 現在の価格                           |
-| `priceHistory`  | `number[]`              | 過去の価格履歴（数値配列）           |
-| `affiliateUrl`  | `string`                | アフィリエイトリンク（楽天）         |
-| `imageUrl`      | `string`                | 商品画像 URL                         |
-| `description`   | `string`                | 商品説明文（楽天 API 由来）          |
-| `shopName`      | `string`                | 販売ショップ名                       |
-| `reviewAverage` | `number`                | レビュー平均点                       |
-| `reviewCount`   | `number`                | レビュー件数                         |
-| `capacity`      | `number`                | 容量（mAh など）                     |
-| `weight`        | `number`                | 重さ（g など）                       |
-| `outputPower`   | `number`                | 出力（W など）                       |
-| `hasTypeC`      | `boolean`               | Type-C 対応かどうか                  |
-| `tags`          | `string[]`              | 自動 or 手動で生成されたタグ群       |
-| `createdAt`     | `Timestamp`             | Firestore 登録日時                   |
-| `updatedAt`     | `Timestamp` or `string` | Firestore 更新日時 or ISO 文字列形式 |
+# 🔹 rakutenItems コレクション構成
 
-## TypeScript 型定義
-
-```ts
-export type RakutenItem = {
-  itemCode: string;
-  itemName: string;
-  shortTitle: string;
-  displayName?: string;
-  itemPrice: number;
-  priceHistory: number[];
-  affiliateUrl: string;
-  imageUrl: string;
-  description: string;
-  shopName: string;
-  reviewAverage: number;
-  reviewCount: number;
-  capacity: number;
-  weight: number;
-  outputPower: number;
-  hasTypeC: boolean;
-  tags?: string[];
-  createdAt: FirebaseFirestore.Timestamp;
-  updatedAt?: FirebaseFirestore.Timestamp | string;
-};
-```
+| フィールド名  | 型                        | 説明                            |
+| ------------- | ------------------------- | ------------------------------- |
+| itemCode      | string                    | 楽天商品コード                  |
+| itemName      | string                    | 楽天商品名（元のタイトル）      |
+| shortTitle    | string                    | タイトルから抽出した短縮名      |
+| itemPrice     | number                    | 現在の価格（itemPrice）         |
+| affiliateUrl  | string                    | 楽天アフィリエイト URL          |
+| imageUrl      | string                    | 商品画像 URL（メイン）          |
+| description   | string                    | 商品説明（HTML またはテキスト） |
+| shopName      | string                    | 店舗名                          |
+| reviewAverage | number                    | レビュー平均                    |
+| reviewCount   | number                    | レビュー件数                    |
+| capacity      | number（未抽出なら省略）  | 容量（mAh）                     |
+| outputPower   | number（未抽出なら省略）  | 出力（W）                       |
+| weight        | number（未抽出なら省略）  | 重さ（g）                       |
+| hasTypeC      | boolean（未抽出なら省略） | Type-C 対応かどうか             |
+| createdAt     | Timestamp                 | 初回取得日時（自動設定）        |
+| updatedAt     | Timestamp                 | 最終更新日時（自動更新）        |

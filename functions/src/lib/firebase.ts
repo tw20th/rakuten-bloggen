@@ -1,9 +1,10 @@
-import { getFirestore } from "firebase-admin/firestore";
-import { initializeApp, getApps } from "firebase-admin/app";
+// lib/firebase.ts
+import admin from "firebase-admin";
 
-// 初期化は一度だけ
-if (getApps().length === 0) {
-  initializeApp();
+if (!admin.apps.length) {
+  admin.initializeApp();
 }
 
-export const db = getFirestore();
+export const db = admin.firestore();
+export const auth = admin.auth();
+export const storage = admin.storage();

@@ -24,4 +24,4 @@ const prodLogger = {
 };
 
 // 自動で切り替え
-export const log = isProd ? prodLogger : devLogger;
+export const logger = isProd ? prodLogger : devLogger;
