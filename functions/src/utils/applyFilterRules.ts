@@ -14,11 +14,13 @@ type ItemSpec = {
   [key: string]: number | boolean | string | null;
 };
 
+// ⬇️ 戻り値の型を拡張
 export const applyFilterRules = (
   item: ItemSpec,
   rules: FilterRule[],
-): string[] => {
+): { tags: string[]; matchedRules: FilterRule[] } => {
   const matchedTags: string[] = [];
+  const matchedRules: FilterRule[] = [];
 
   for (const rule of rules) {
     const isMatch = rule.conditions.every((cond) => {
@@ -47,8 +49,12 @@ export const applyFilterRules = (
 
     if (isMatch) {
       matchedTags.push(...rule.tags);
+      matchedRules.push(rule); // ⬅️ 追加
     }
   }
 
-  return [...new Set(matchedTags)];
+  return {
+    tags: [...new Set(matchedTags)],
+    matchedRules,
+  };
 };

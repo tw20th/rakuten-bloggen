@@ -1,3 +1,4 @@
+// functions/src/scripts/item/filterAndSaveItems.ts
 import { db } from "../../lib/firebase";
 import {
   extractCapacity,
@@ -29,6 +30,20 @@ export const filterAndSaveItems = async () => {
       hasTypeC,
     });
 
+    const { tags, matchedRules } = applyFilterRules(
+      {
+        capacity,
+        outputPower,
+        weight,
+        hasTypeC,
+        itemName: data.itemName,
+      },
+      itemFilterRules,
+    );
+
+    // ✅ カテゴリは最初にマッチしたルールのラベル（なければ空文字）
+    const category = matchedRules.length > 0 ? matchedRules[0].label : "";
+
     const item = {
       productName: extractShortTitle(data.itemName),
       imageUrl: data.imageUrl,
@@ -37,16 +52,8 @@ export const filterAndSaveItems = async () => {
       outputPower,
       weight,
       hasTypeC,
-      tags: applyFilterRules(
-        {
-          capacity,
-          outputPower,
-          weight,
-          hasTypeC,
-          itemName: data.itemName,
-        },
-        itemFilterRules,
-      ),
+      tags,
+      category, // 🆕 カテゴリを追加
       featureHighlights,
       aiSummary: "",
       priceHistory: [
@@ -56,11 +63,12 @@ export const filterAndSaveItems = async () => {
         },
       ],
       affiliateUrl: data.affiliateUrl || "",
+      views: 0, // 🆕 初期ビュー数を追加
       createdAt: data.createdAt,
       updatedAt: new Date(),
     };
 
-    // 🔁 IDの変換：「anker:10000641」→「anker-10000641」
+    // IDの整形：「anker:10000641」→「anker-10000641」
     const id = doc.id.replace(/:/g, "-");
 
     await db.collection("monitoredItems").doc(id).set(item, { merge: true });

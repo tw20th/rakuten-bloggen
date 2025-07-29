@@ -4,15 +4,17 @@
 
 - slug（URL 用に使われる）
 
-## フィールド一覧
+## ◆ blogs コレクション構成
 
 | フィールド名    | 型                    | 説明                                              |
 | --------------- | --------------------- | ------------------------------------------------- |
 | title           | string                | 記事タイトル                                      |
 | content         | string                | 記事本文（Markdown 形式）                         |
 | aiSummary       | string                | 記事要約（AI による自動生成）                     |
-| imageUrl        | string                | メイン画像 URL（楽天商品画像）                    |
+| imageUrl        | string                | メイン画像 URL（楽天商品画像など）                |
 | tags            | string[]              | 記事に関連するタグ一覧                            |
+| category        | string                | 記事カテゴリ（選び方、レビュー、比較など）        |
+| views           | number                | 表示回数（人気順ソートなどで使用）                |
 | productId       | string                | 紐づく商品 ID（monitoredItems のドキュメント ID） |
 | createdAt       | Timestamp             | 作成日時                                          |
 | updatedAt       | Timestamp             | 最終更新日時                                      |

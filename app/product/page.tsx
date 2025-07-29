@@ -1,30 +1,26 @@
 // app/product/page.tsx
-"use client";
+import { ProductPageClient } from "./ProductPageClient";
+import { dbAdmin } from "@/lib/firebaseAdmin"; // ← ✅ 統一されたAdmin Firestore
+import { ProductType } from "@/types/product";
 
-import { useProducts } from "@/hooks/useProducts";
-import { ProductList } from "@/components/product/ProductList";
-import { useState } from "react";
+export const dynamic = "force-dynamic"; // SSRで最新反映
 
-export default function ProductPage() {
-  const { products } = useProducts();
-  const [visibleCount, setVisibleCount] = useState(20);
+export default async function ProductPage() {
+  const snapshot = await dbAdmin
+    .collection("monitoredItems")
+    .orderBy("createdAt", "desc")
+    .limit(30)
+    .get();
 
-  const visibleProducts = products.slice(0, visibleCount);
+  const products = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.().toISOString() ?? "",
+      updatedAt: data.updatedAt?.toDate?.().toISOString() ?? "",
+    };
+  }) as ProductType[];
 
-  return (
-    <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">モバイルバッテリー一覧</h1>
-      <ProductList items={visibleProducts} />
-      {visibleCount < products.length && (
-        <div className="flex justify-center mt-6">
-          <button
-            onClick={() => setVisibleCount((prev) => prev + 20)}
-            className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded shadow text-sm"
-          >
-            もっと見る
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  return <ProductPageClient products={products} />;
 }

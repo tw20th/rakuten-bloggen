@@ -3,13 +3,15 @@ import Markdown from "@/components/ui/Markdown";
 import RelatedProduct from "@/components/blog/RelatedProduct";
 import { notFound } from "next/navigation";
 import type { Item } from "@/types/item";
-import type { Blog } from "@/types/blog";
+import { BlogType as Blog } from "@/types/blog";
+import { Timestamp } from "firebase-admin/firestore"; // 重要：Timestamp を明示的に import
 
 export default async function BlogDetailPage({
   params,
 }: {
   params: { slug: string };
 }) {
+  // ブログ取得
   const blogRef = db.doc(`blogs/${params.slug}`);
   const blogSnap = await blogRef.get();
 
@@ -18,20 +20,32 @@ export default async function BlogDetailPage({
   }
 
   const rawBlog = blogSnap.data() as Blog;
+
   const blog: Blog & { createdAtString?: string } = {
     ...rawBlog,
-    createdAtString: rawBlog.createdAt?.toDate().toISOString(),
+    createdAtString:
+      rawBlog.createdAt instanceof Timestamp
+        ? rawBlog.createdAt.toDate().toISOString()
+        : typeof rawBlog.createdAt === "string"
+        ? rawBlog.createdAt
+        : "",
   };
 
+  // 関連アイテム取得（relatedItemCode が定義されている前提）
   const itemRef = db.doc(`rakutenItems/${rawBlog.relatedItemCode}`);
   const itemSnap = await itemRef.get();
 
   const rawItem = itemSnap.exists ? (itemSnap.data() as Item) : null;
+
   const relatedItem = rawItem
     ? {
         ...rawItem,
-        // もし createdAt など Timestamp を含んでいるなら変換（任意）
-        createdAt: rawItem.createdAt?.toDate().toISOString() ?? "",
+        createdAt:
+          rawItem.createdAt instanceof Timestamp
+            ? rawItem.createdAt.toDate().toISOString()
+            : typeof rawItem.createdAt === "string"
+            ? rawItem.createdAt
+            : "",
       }
     : null;
 

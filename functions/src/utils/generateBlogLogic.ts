@@ -23,6 +23,17 @@ export const generateBlogFromItem = async (
   }
 
   const item = itemSnap.data();
+
+  // ✅ monitoredItems から tags と category を取得（存在しなければ空に）
+  const monitoredId = itemCode.replace(/:/g, "-");
+  const monitoredSnap = await db
+    .collection("monitoredItems")
+    .doc(monitoredId)
+    .get();
+  const monitoredData = monitoredSnap.exists ? monitoredSnap.data() : {};
+  const tags = monitoredData?.tags ?? [];
+  const category = monitoredData?.category ?? "";
+
   const prompt = `次の商品の紹介記事を書いてください：${item?.itemName}\n説明：${item?.description}`;
 
   const chatRes = await openai.chat.completions.create({
@@ -33,14 +44,22 @@ export const generateBlogFromItem = async (
   const content = chatRes.choices[0].message.content || "";
   const slug = slugify(item?.itemName || itemCode);
 
-  await db.collection("blogs").doc(slug).set({
-    slug,
-    title: item?.itemName,
-    content,
-    status: "draft",
-    relatedItemCode: itemCode,
-    createdAt: new Date(),
-  });
+  await db
+    .collection("blogs")
+    .doc(slug)
+    .set({
+      slug,
+      title: item?.itemName,
+      content,
+      status: "draft",
+      relatedItemCode: itemCode,
+      tags,
+      category,
+      views: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      imageUrl: monitoredData?.imageUrl || item?.imageUrl || "",
+    });
 
   logger.info("✅ ブログ記事の保存が完了", { slug });
 

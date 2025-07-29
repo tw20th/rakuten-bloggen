@@ -1,4 +1,4 @@
-// app/blog/_components/LoadMore.tsx
+// components/ui/LoadMore.tsx
 type Props = {
   onClick: () => void;
   loading: boolean;

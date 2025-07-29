@@ -1,39 +1,50 @@
 // components/product/PriceChart.tsx
 "use client";
 
+import React from "react";
 import {
+  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
+  CartesianGrid,
 } from "recharts";
-import type { PriceRecord } from "@/types/monitoredItem";
 
-type Props = {
-  data: PriceRecord[];
+type PricePoint = {
+  date: string;
+  price: number;
 };
 
-export const PriceChart = ({ data }: Props) => {
-  // ソートしてから描画（念のため）
-  const sortedData = [...data].sort((a, b) => a.date.localeCompare(b.date));
+type Props = {
+  priceHistory: PricePoint[];
+};
+
+export const PriceChart: React.FC<Props> = ({ priceHistory }) => {
+  if (!priceHistory || priceHistory.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">価格推移データがありません。</p>
+    );
+  }
 
   return (
     <div className="w-full h-64">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={sortedData}>
-          <XAxis dataKey="date" fontSize={12} />
-          <YAxis fontSize={12} tickFormatter={(v) => `¥${v}`} />
+        <LineChart data={priceHistory}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" />
+          <YAxis domain={["auto", "auto"]} />
           <Tooltip
             formatter={(value: number) => `¥${value.toLocaleString()}`}
           />
           <Line
             type="monotone"
             dataKey="price"
-            stroke="#4F46E5"
+            stroke="#10b981"
             strokeWidth={2}
-            dot={false}
+            dot={{ r: 3 }}
+            activeDot={{ r: 5 }}
           />
         </LineChart>
       </ResponsiveContainer>

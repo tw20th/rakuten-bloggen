@@ -1,40 +1,27 @@
 // components/blog/RelatedProduct.tsx
-"use client";
-
+import type { Item } from "@/types/item";
 import Image from "next/image";
-
-type Item = {
-  itemName: string;
-  itemPrice: number;
-  affiliateUrl: string;
-  imageUrl: string;
-  shopName: string;
-};
 
 export default function RelatedProduct({ item }: { item: Item }) {
   return (
-    <a
-      href={item.affiliateUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block border rounded-xl p-4 hover:shadow-md transition"
-    >
-      <div className="flex items-center gap-4">
-        <Image
-          src={item.imageUrl}
-          alt={item.itemName}
-          width={96}
-          height={96}
-          className="object-contain"
-        />
-        <div>
-          <p className="font-semibold">{item.itemName}</p>
-          <p className="text-sm text-gray-500">{item.shopName}</p>
-          <p className="text-red-500 font-bold mt-1">
-            ¥{item.itemPrice.toLocaleString()}
-          </p>
-        </div>
-      </div>
-    </a>
+    <div className="border p-4 rounded">
+      <h3 className="text-lg font-bold mb-2">{item.displayName}</h3>
+      <Image
+        src={item.imageUrl}
+        alt={item.displayName ?? "商品画像"}
+        width={400}
+        height={300}
+        className="w-full h-auto mb-2"
+      />
+      <p className="text-sm text-gray-700">{item.description}</p>
+      <a
+        href={item.affiliateUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 underline mt-2 block"
+      >
+        商品を見る
+      </a>
+    </div>
   );
 }

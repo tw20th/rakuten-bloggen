@@ -1,23 +1,27 @@
 // types/blog.ts
 
-import { Timestamp } from "firebase-admin/firestore";
-
-// サーバーサイド用（Firestoreから取得時）
-export type Blog = {
-  slug: string;
-  title: string;
-  content: string;
-  status: "draft" | "published";
-  relatedItemCode: string;
-  createdAt: Timestamp;
+export type AnalysisResult = {
+  score: number; // SEOや構造に対するスコア（0〜100）
+  suggestions: string[]; // 改善提案リスト
+  createdAt: string; // 分析日時（ISO文字列）
+  summary?: string; // 要約 or 評価コメント（任意）
 };
 
-// クライアントサイド用（画面表示時）
-export type BlogClient = {
-  slug: string;
+// types/blog.ts
+export type BlogType = {
+  slug: string; // ← BlogCard 側が必要としてる
   title: string;
   content: string;
+  aiSummary: string;
+  imageUrl: string;
+  tags: string[];
+  category: string;
+  views: number;
+  productId: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
   status: "draft" | "published";
-  relatedItemCode: string;
-  createdAt: string; // ← ISO文字列
+  analysisHistory: AnalysisResult[];
+  relatedItemCode: string; // ← 追加
+  summary?: string; // ← これを追加
 };

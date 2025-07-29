@@ -11,7 +11,9 @@
     "migrate:ids:dry": "DRY_RUN=1 tsx scripts/migrateMonitoredItemsIds.ts"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.3",
     "axios": "^1.11.0",
+    "class-variance-authority": "^0.7.1",
     "dotenv": "^17.2.1",
     "firebase": "^12.0.0",
     "firebase-admin": "^13.4.0",

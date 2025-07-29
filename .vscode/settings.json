@@ -1,5 +1,7 @@
 {
   "eslint.workingDirectories": [
     { "directory": "./functions", "changeProcessCWD": true }
-  ]
+  ],
+  "typescript.preferences.updateImportsOnFileMove.enabled": "always",
+  "javascript.preferences.updateImportsOnFileMove.enabled": "always"
 }

@@ -4,7 +4,7 @@
 
 - itemCode（rakutenItems と同じ）
 
-# 🔹 monitoredItems コレクション構成
+## ◆ monitoredItems コレクション構成
 
 | フィールド名      | 型                         | 説明                                         |
 | ----------------- | -------------------------- | -------------------------------------------- |
@@ -16,6 +16,8 @@
 | weight            | number（未抽出なら省略）   | 重さ（g）                                    |
 | hasTypeC          | boolean（未抽出なら省略）  | Type-C 対応かどうか                          |
 | tags              | string[]                   | 抽出された特徴タグ（itemFilterRules による） |
+| category          | string                     | 商品カテゴリ（手動またはルールにより分類）   |
+| views             | number                     | 表示回数（人気順ソートなどで使用）           |
 | featureHighlights | string[]（未抽出なら省略） | 特徴の要点（AI 要約用の元データ）            |
 | aiSummary         | string（空文字でも OK）    | AI による商品要約（generatedAiSummary）      |
 | priceHistory      | Array<{date, price}>       | 日次で記録した価格履歴                       |

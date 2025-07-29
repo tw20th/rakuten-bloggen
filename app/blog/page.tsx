@@ -1,15 +1,11 @@
 // app/blog/page.tsx
 import { fetchBlogsPage } from "@/lib/firestore/blogs";
-import BlogList from "./_components/BlogList";
+import { BlogPageClient } from "./BlogPageClient";
 
-export const revalidate = 60; // ISR対応
+export const revalidate = 60; // ISR：60秒ごとに再生成（任意）
 
 export default async function BlogPage() {
-  const { items, nextCursor } = await fetchBlogsPage({});
-  return (
-    <main className="p-4 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">最新ブログ記事</h1>
-      <BlogList initialItems={items} initialCursor={nextCursor} />
-    </main>
-  );
+  const { items, nextCursor } = await fetchBlogsPage({}); // Firestore SSR取得
+
+  return <BlogPageClient initialItems={items} initialCursor={nextCursor} />;
 }

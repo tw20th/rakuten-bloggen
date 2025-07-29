@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["thumbnail.image.rakuten.co.jp"], // ✅ 追加！
+    domains: ["thumbnail.image.rakuten.co.jp"],
   },
+  productionBrowserSourceMaps: true,
 };
 
-export default nextConfig;
+export default nextConfig; // ← ✅ これが抜けてた！

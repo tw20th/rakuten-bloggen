@@ -1,43 +1,43 @@
 // components/product/ProductCard.tsx
-
 "use client";
 
+import type { ProductType } from "@/types/product";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Image from "next/image";
 import Link from "next/link";
-import type { MonitoredItem } from "@/types/monitoredItem";
 
 type Props = {
-  item: MonitoredItem;
+  product: ProductType;
 };
 
-export const ProductCard = ({ item }: Props) => {
+export default function ProductCard({ product }: Props) {
   return (
-    <Link
-      href={`/product/${item.id}`}
-      className="border rounded-xl p-4 hover:shadow-md transition flex flex-col"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={item.imageUrl}
-        alt={item.productName}
-        className="w-full h-48 object-contain mb-3 rounded"
-      />
-      <h2 className="text-lg font-semibold line-clamp-2">{item.productName}</h2>
-      <p className="text-green-600 font-bold text-sm mt-1">
-        ¥{item.price.toLocaleString()}
-      </p>
-
-      {item.tags?.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {item.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="text-xs bg-gray-100 border rounded px-2 py-0.5"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
+    <Link href={`/product/${product.id}`} className="block">
+      <Card className="hover:shadow-lg transition-shadow duration-200">
+        <Image
+          src={product.imageUrl}
+          alt={product.productName}
+          width={500}
+          height={300}
+          className="w-full h-48 object-contain p-4"
+        />
+        <CardContent className="space-y-2 px-4 pb-4">
+          <h2 className="text-base font-semibold line-clamp-2">
+            {product.productName}
+          </h2>
+          <div className="text-lg font-bold text-red-600">
+            ¥{product.price.toLocaleString()}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {product.tags.slice(0, 3).map((tag) => (
+              <Badge key={tag} className="text-xs" variant="outline">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   );
-};
+}
