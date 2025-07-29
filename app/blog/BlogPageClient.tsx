@@ -1,10 +1,9 @@
-// app/blog/BlogPageClient.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
 import { useBlogs } from "@/hooks/useBlogs";
 import { BlogList } from "@/components/blog/BlogList";
-import type { BlogType } from "@/types";
+import type { BlogType } from "@/types/blog";
 
 type Props = {
   initialItems: BlogType[];
@@ -15,32 +14,33 @@ export function BlogPageClient({ initialItems, initialCursor }: Props) {
   const { blogs, isLoading, hasMore, loadMore } = useBlogs({
     initialItems,
     initialCursor,
-    auto: true, // 無限スクロールを有効化
+    auto: true,
     initialQuery: {
       sort: "newest",
       pageSize: 10,
     },
   });
 
-  // hook ではなく、このコンポーネント側で sentinelRef を用意
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!sentinelRef.current) return;
-    if (!hasMore) return;
+    if (!sentinelRef.current || !hasMore) return;
 
-    const io = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting && !isLoading) {
+        if (entries[0].isIntersecting && !isLoading) {
           void loadMore();
         }
       },
-      { rootMargin: "200px 0px" }
+      {
+        rootMargin: "200px 0px",
+      }
     );
 
-    io.observe(sentinelRef.current);
-    return () => io.disconnect();
+    observer.observe(sentinelRef.current);
+    return () => {
+      observer.disconnect();
+    };
   }, [hasMore, isLoading, loadMore]);
 
   return (

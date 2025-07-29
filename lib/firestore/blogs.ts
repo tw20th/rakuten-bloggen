@@ -47,6 +47,7 @@ export async function fetchBlogsPage({
   const direction = sort === "oldest" ? "asc" : "desc";
 
   const constraints: QueryConstraint[] = [
+    where("status", "==", "published"), // ✅ ここ追加！
     orderBy("createdAt", direction),
     limit(10),
   ];
@@ -73,7 +74,6 @@ export async function fetchBlogsPage({
 
   return { items, nextCursor };
 }
-
 /**
  * Firestore の生スナップショットから BlogType へ整形
  */
