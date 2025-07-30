@@ -21,13 +21,15 @@ export function BlogCard({ blog }: Props) {
       {/* サムネイル画像 */}
       <div className="relative aspect-video w-full">
         {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={title}
-            fill
-            sizes="(max-width: 768px) 100vw, 33vw"
-            className="object-cover transition-transform group-hover:scale-105"
-          />
+          <div className="relative w-full h-48">
+            <Image
+              src={imageUrl}
+              alt={title}
+              fill
+              sizes="(max-width: 768px) 100vw, 33vw"
+              className="object-cover transition-transform group-hover:scale-105"
+            />
+          </div>
         ) : (
           <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
             画像なし

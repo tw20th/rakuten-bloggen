@@ -1,9 +1,10 @@
 // components/product/ProductList.tsx
-import type { ProductType } from "@/types/product";
+import type { MonitoredItem } from "@/types/monitoredItem";
 import ProductCard from "@/components/product/ProductCard";
+import { FadeInOnScroll } from "@/components/common/FadeInOnScroll";
 
 type Props = {
-  products: ProductType[];
+  products: MonitoredItem[];
 };
 
 export function ProductList({ products }: Props) {
@@ -18,7 +19,9 @@ export function ProductList({ products }: Props) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <FadeInOnScroll key={product.id}>
+          <ProductCard product={product} />
+        </FadeInOnScroll>
       ))}
     </div>
   );

@@ -1,11 +1,22 @@
-// app/blog/page.tsx
-import { fetchBlogsPage } from "@/lib/firestore/blogs";
-import { BlogPageClient } from "./BlogPageClient";
+import BlogPageClient from "./BlogPageClient";
+import { getInitialBlogs } from "@/lib/firestore/blogs";
 
-export const revalidate = 60; // ISR：60秒ごとに再生成（任意）
+export default async function BlogPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string };
+}) {
+  const sort = (searchParams.sort as "newest" | "popular") || "newest";
+  const tag = searchParams.tag || undefined;
 
-export default async function BlogPage() {
-  const { items, nextCursor } = await fetchBlogsPage({}); // Firestore SSR取得
+  const { items, nextCursor } = await getInitialBlogs({ sort, tag });
 
-  return <BlogPageClient initialItems={items} initialCursor={nextCursor} />;
+  return (
+    <BlogPageClient
+      initialItems={items}
+      initialCursor={nextCursor ?? undefined} // ← null を undefined に変換
+      sort={sort}
+      tag={tag}
+    />
+  );
 }

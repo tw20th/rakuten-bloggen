@@ -1,10 +1,10 @@
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebaseClient";
+import { doc, getDoc, Timestamp } from "firebase/firestore";
 import Markdown from "@/components/ui/Markdown";
 import RelatedProduct from "@/components/blog/RelatedProduct";
 import { notFound } from "next/navigation";
 import type { Item } from "@/types/item";
 import { BlogType as Blog } from "@/types/blog";
-import { Timestamp } from "firebase-admin/firestore"; // 重要：Timestamp を明示的に import
 
 export default async function BlogDetailPage({
   params,
@@ -12,10 +12,10 @@ export default async function BlogDetailPage({
   params: { slug: string };
 }) {
   // ブログ取得
-  const blogRef = db.doc(`blogs/${params.slug}`);
-  const blogSnap = await blogRef.get();
+  const blogRef = doc(db, `blogs/${params.slug}`);
+  const blogSnap = await getDoc(blogRef);
 
-  if (!blogSnap.exists) {
+  if (!blogSnap.exists()) {
     notFound();
   }
 
@@ -31,11 +31,11 @@ export default async function BlogDetailPage({
         : "",
   };
 
-  // 関連アイテム取得（relatedItemCode が定義されている前提）
-  const itemRef = db.doc(`rakutenItems/${rawBlog.relatedItemCode}`);
-  const itemSnap = await itemRef.get();
+  // 関連アイテム取得
+  const itemRef = doc(db, `rakutenItems/${rawBlog.relatedItemCode}`);
+  const itemSnap = await getDoc(itemRef);
 
-  const rawItem = itemSnap.exists ? (itemSnap.data() as Item) : null;
+  const rawItem = itemSnap.exists() ? (itemSnap.data() as Item) : null;
 
   const relatedItem = rawItem
     ? {

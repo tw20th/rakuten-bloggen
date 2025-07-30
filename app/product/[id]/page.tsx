@@ -1,5 +1,5 @@
 // app/product/[id]/page.tsx
-import { db } from "@/lib/firebase";
+import { dbAdmin as db } from "@/lib/firebaseAdmin";
 import { convertToProduct } from "@/utils/convertToProduct";
 import type { ProductType } from "@/types/product";
 import Image from "next/image";

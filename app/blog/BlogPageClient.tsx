@@ -1,66 +1,49 @@
+// app/blog/BlogPageClient.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useBlogs } from "@/hooks/useBlogs";
+import { BlogFilter } from "@/components/blog/BlogFilter";
 import { BlogList } from "@/components/blog/BlogList";
-import type { BlogType } from "@/types/blog";
+import type { BlogType } from "@/types";
 
 type Props = {
   initialItems: BlogType[];
   initialCursor?: string;
+  sort: "newest" | "popular";
+  tag?: string;
 };
 
-export function BlogPageClient({ initialItems, initialCursor }: Props) {
-  const { blogs, isLoading, hasMore, loadMore } = useBlogs({
+export default function BlogPageClient({
+  initialItems,
+  initialCursor,
+  sort,
+  tag,
+}: Props) {
+  const { blogs, loadMore, hasMore, isLoading } = useBlogs({
     initialItems,
     initialCursor,
-    auto: true,
-    initialQuery: {
-      sort: "newest",
-      pageSize: 10,
-    },
+    initialQuery: { sort, tag },
   });
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!sentinelRef.current || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading) {
-          void loadMore();
-        }
-      },
-      {
-        rootMargin: "200px 0px",
-      }
-    );
-
-    observer.observe(sentinelRef.current);
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, isLoading, loadMore]);
-
   return (
-    <div className="space-y-8 max-w-5xl mx-auto px-4 py-8">
-      <BlogList items={blogs} />
+    <main className="p-4 sm:p-8 max-w-6xl mx-auto">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6">ブログ一覧</h1>
 
-      {hasMore && (
-        <div
-          ref={sentinelRef}
-          className="h-12 w-full flex items-center justify-center"
-        >
-          {isLoading ? (
-            <span className="text-gray-500 text-sm">読み込み中…</span>
-          ) : (
-            <span className="text-gray-400 text-sm">
-              スクロールでさらに表示
-            </span>
-          )}
-        </div>
-      )}
-    </div>
+      <div className="space-y-4">
+        <BlogFilter currentSort={sort} currentTag={tag} />
+        <BlogList blogs={blogs} />
+        {hasMore && (
+          <div className="text-center">
+            <button
+              onClick={loadMore}
+              disabled={isLoading}
+              className="mt-4 px-4 py-2 bg-gray-200 rounded"
+            >
+              {isLoading ? "読み込み中..." : "もっと見る"}
+            </button>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

@@ -1,14 +1,14 @@
 // components/product/ProductCard.tsx
 "use client";
 
-import type { ProductType } from "@/types/product";
+import type { MonitoredItem } from "@/types/monitoredItem"; // ←ここを変更！
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import Link from "next/link";
 
 type Props = {
-  product: ProductType;
+  product: MonitoredItem; // ←ここを変更！
 };
 
 export default function ProductCard({ product }: Props) {

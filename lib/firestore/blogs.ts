@@ -1,106 +1,83 @@
-// lib/firestore/blogs.ts
-import { dbClient as db } from "@/lib/firebaseClient";
 import {
   collection,
+  query,
+  orderBy,
+  where,
+  limit,
+  startAfter,
   getDocs,
   getDoc,
   doc,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  Timestamp,
-  DocumentData,
-  QueryConstraint,
-  QueryDocumentSnapshot,
 } from "firebase/firestore";
+import { db } from "@/lib/firebaseClient";
 import type { BlogType } from "@/types";
 
-/**
- * 全ブログ記事を取得（createdAt の新しい順）
- */
-export async function getAllBlogs(): Promise<BlogType[]> {
-  const q = query(collection(db, "blogs"), orderBy("createdAt", "desc"));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(parseBlogDoc);
-}
-
-/**
- * ページネーション付きでブログ記事を取得
- */
-export type FetchBlogsPageParams = {
-  cursor?: string; // 直前のドキュメントID
-  sort?: "newest" | "oldest";
+type BlogQuery = {
+  sort?: "newest" | "popular";
   tag?: string;
+  pageSize?: number;
 };
 
+// 👇 これが必要！
 export async function fetchBlogsPage({
   cursor,
-  sort = "newest",
-  tag,
-}: FetchBlogsPageParams): Promise<{
-  items: BlogType[];
-  nextCursor?: string;
-}> {
-  const blogsRef = collection(db, "blogs");
-  const direction = sort === "oldest" ? "asc" : "desc";
+  query: queryParams,
+}: {
+  cursor?: string;
+  query?: BlogQuery;
+}) {
+  const col = collection(db, "blogs");
 
-  const constraints: QueryConstraint[] = [
-    where("status", "==", "published"), // ✅ ここ追加！
-    orderBy("createdAt", direction),
-    limit(10),
-  ];
+  let q = query(col);
 
-  if (tag) {
-    constraints.push(where("tags", "array-contains", tag));
+  // 🔽 タグフィルタ
+  if (queryParams?.tag) {
+    q = query(q, where("tags", "array-contains", queryParams.tag));
   }
+
+  // 🔽 ソートとページング
+  const orderField = queryParams?.sort === "popular" ? "views" : "createdAt";
+  const pageSize = queryParams?.pageSize || 10;
 
   if (cursor) {
-    const cursorDoc = await getDoc(doc(db, "blogs", cursor));
-    if (cursorDoc.exists()) {
-      constraints.push(startAfter(cursorDoc));
-    }
+    const cursorSnap = await getDoc(doc(col, cursor));
+    if (!cursorSnap.exists()) throw new Error("Invalid cursor");
+
+    q = query(
+      q,
+      orderBy(orderField, "desc"),
+      startAfter(cursorSnap),
+      limit(pageSize)
+    );
+  } else {
+    q = query(q, orderBy(orderField, "desc"), limit(pageSize));
   }
 
-  const q = query(blogsRef, ...constraints);
   const snapshot = await getDocs(q);
+  const items: BlogType[] = snapshot.docs.map((doc) => ({
+    ...(doc.data() as Omit<BlogType, "id">),
+    id: doc.id,
+  }));
 
-  const items = snapshot.docs.map(parseBlogDoc);
   const nextCursor =
-    snapshot.docs.length > 0
-      ? snapshot.docs[snapshot.docs.length - 1].id
-      : undefined;
+    snapshot.docs.length > 0 ? snapshot.docs.at(-1)?.id : undefined;
 
   return { items, nextCursor };
 }
-/**
- * Firestore の生スナップショットから BlogType へ整形
- */
-function parseBlogDoc(snap: QueryDocumentSnapshot<DocumentData>): BlogType {
-  const data = snap.data();
-
-  return {
-    slug: data.slug ?? snap.id,
-    title: data.title,
-    content: data.content,
-    tags: data.tags ?? [],
-    views: data.views ?? 0,
-    status: data.status ?? "draft",
-    createdAt:
-      data.createdAt instanceof Timestamp
-        ? data.createdAt.toDate()
-        : new Date(),
-    updatedAt:
-      data.updatedAt instanceof Timestamp
-        ? data.updatedAt.toDate()
-        : new Date(),
-    summary: data.summary ?? "",
-    analysisHistory: data.analysisHistory ?? [],
-    aiSummary: data.aiSummary ?? "",
-    imageUrl: data.imageUrl ?? "",
-    category: data.category ?? "",
-    productId: data.productId ?? "",
-    relatedItemCode: data.relatedItemCode ?? "", // 空文字などで fallback
-  };
+export async function getInitialBlogs({
+  sort,
+  tag,
+  pageSize,
+}: {
+  sort?: "newest" | "popular";
+  tag?: string;
+  pageSize?: number;
+}) {
+  return await fetchBlogsPage({
+    query: {
+      sort,
+      tag,
+      pageSize,
+    },
+  });
 }

@@ -24,4 +24,6 @@ export type BlogType = {
   analysisHistory: AnalysisResult[];
   relatedItemCode: string; // ← 追加
   summary?: string; // ← これを追加
+  viewCount?: number; // ← これを追加！
+  id: string; // ← ここに追加！
 };
