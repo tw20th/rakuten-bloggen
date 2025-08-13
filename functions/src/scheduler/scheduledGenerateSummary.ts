@@ -1,22 +1,23 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { logger } from "firebase-functions";
-import { OPENAI_API_KEY } from "../config/secrets";
-import { runGenerateSummaryTask } from "../scripts/item/generateSummaryFunction"; // ← 変更！
+// functions/src/scheduler/scheduledGenerateSummary.ts
 
-export const scheduledGenerateSummary = onSchedule(
-  {
-    schedule: "0 1 * * *", // JST 1:00
-    timeZone: "Asia/Tokyo",
-    region: "asia-northeast1",
-    secrets: [OPENAI_API_KEY],
-  },
-  async () => {
-    logger.info("⏰ scheduledGenerateSummary started");
+import * as functions from "firebase-functions";
+import { runGenerateSummaryTask } from "../scripts/item/generateSummaryFunction";
+import { config } from "dotenv";
+
+// .env 読み込み（必要であれば）
+config();
+
+export const scheduledGenerateSummary = functions
+  .region("asia-northeast1")
+  .pubsub.schedule("0 1 * * *") // JST 1:00
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    functions.logger.info("⏰ scheduledGenerateSummary started");
+
     try {
-      await runGenerateSummaryTask(); // ← 修正ポイント！
-      logger.info("✅ scheduledGenerateSummary completed");
+      await runGenerateSummaryTask();
+      functions.logger.info("✅ scheduledGenerateSummary completed");
     } catch (error) {
-      logger.error("❌ Error in scheduledGenerateSummary", error);
+      functions.logger.error("❌ Error in scheduledGenerateSummary", error);
     }
-  },
-);
+  });

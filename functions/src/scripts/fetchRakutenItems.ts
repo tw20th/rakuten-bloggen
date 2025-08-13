@@ -1,21 +1,24 @@
-import { onRequest } from "firebase-functions/v2/https";
+// functions/src/scripts/fetchRakutenItems.ts
+
+import * as functions from "firebase-functions";
 import { Request, Response } from "express";
-import * as logger from "firebase-functions/logger";
-import { getRakutenItemsAndSave } from "../utils/fetchRakutenLogic"; // ← 分離ロジックを呼び出し
+import { getRakutenItemsAndSave } from "../utils/fetchRakutenLogic";
 
 // 🔧 メインのハンドラー関数
-export const fetchRakutenItemsHandler = async (req: Request, res: Response) => {
+const fetchRakutenItemsHandler = async (req: Request, res: Response) => {
   try {
-    const itemName = await getRakutenItemsAndSave(); // 🔁 共通ロジックを実行
+    const itemName = await getRakutenItemsAndSave();
     res.status(200).send("Saved item: " + itemName);
   } catch (error) {
-    logger.error("❌ 処理中エラー", error as Error);
+    functions.logger.error("❌ 処理中エラー", error as Error);
     res.status(500).send("Error fetching from Rakuten API");
   }
 };
 
-// ✅ Cloud Functions v2 のエクスポート
-export const fetchRakutenItemsFunc = onRequest(
-  { cors: true },
-  fetchRakutenItemsHandler,
-);
+// ✅ 明示的に export（←これが不足していた）
+export { fetchRakutenItemsHandler };
+
+// ✅ v1: region指定ありの HTTP 関数としてエクスポート
+export const fetchRakutenItems = functions
+  .region("asia-northeast1")
+  .https.onRequest(fetchRakutenItemsHandler);

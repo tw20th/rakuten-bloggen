@@ -4,7 +4,7 @@ import RelatedProduct from "@/components/blog/RelatedProduct";
 import { notFound } from "next/navigation";
 import type { Item } from "@/types/item";
 import { BlogType as Blog } from "@/types/blog";
-import { Timestamp } from "firebase-admin/firestore"; // 重要：Timestamp を明示的に import
+import { Timestamp, FieldValue } from "firebase-admin/firestore"; // 👈 FieldValue を追加
 
 export default async function BlogDetailPage({
   params,
@@ -20,6 +20,11 @@ export default async function BlogDetailPage({
   }
 
   const rawBlog = blogSnap.data() as Blog;
+
+  // 👁️ views を +1 で更新（非同期・待たずに実行）
+  blogRef
+    .update({ views: FieldValue.increment(1) })
+    .catch((e) => console.error("views update failed:", e));
 
   const blog: Blog & { createdAtString?: string } = {
     ...rawBlog,

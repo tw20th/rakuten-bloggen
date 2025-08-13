@@ -1,59 +1,63 @@
-// components/blog/BlogCard.tsx
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import type { BlogType } from "@/types/blog";
-import { TagBadge } from "@/components/common/TagBadge";
+import { incrementBlogViews } from "@/lib/firestore/blogs";
+import type { BlogType } from "@/types";
+import { Eye } from "lucide-react";
 
 type Props = {
   blog: BlogType;
 };
 
 export function BlogCard({ blog }: Props) {
-  const { slug, title, imageUrl, aiSummary, tags, category } = blog;
-
-  const summary = aiSummary || "";
+  // 🔥 ブログ詳細ページに遷移したときのみ view カウント
+  useEffect(() => {
+    const isBlogDetail = window.location.pathname.includes(
+      `/blog/${blog.slug}`
+    );
+    if (isBlogDetail) {
+      incrementBlogViews(blog.slug);
+    }
+  }, [blog.slug]);
 
   return (
     <Link
-      href={`/blog/${slug}`}
-      className="group block rounded-2xl overflow-hidden border bg-white hover:shadow-md transition-all"
+      href={`/blog/${blog.slug}`}
+      className="block rounded-xl border border-gray-200 hover:shadow-md transition-shadow bg-white"
     >
-      {/* サムネイル画像 */}
-      <div className="relative aspect-video w-full">
-        {imageUrl ? (
+      {blog.imageUrl && (
+        <div className="relative w-full h-48 overflow-hidden rounded-t-xl">
           <Image
-            src={imageUrl}
-            alt={title}
+            src={blog.imageUrl}
+            alt={blog.title}
             fill
-            sizes="(max-width: 768px) 100vw, 33vw"
-            className="object-cover transition-transform group-hover:scale-105"
+            className="object-cover"
           />
-        ) : (
-          <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
-            画像なし
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* テキストコンテンツ */}
       <div className="p-4 space-y-2">
-        {/* カテゴリ・タグ */}
-        <div className="flex flex-wrap gap-1 text-sm text-gray-500">
-          {category && <span>{category}</span>}
-          {tags.slice(0, 2).map((tag) => (
-            <TagBadge key={tag} label={tag} />
+        <div className="flex flex-wrap gap-1 text-xs text-blue-600 font-medium">
+          {blog.tags.map((tag) => (
+            <span key={tag} className="bg-blue-100 px-2 py-0.5 rounded">
+              #{tag}
+            </span>
           ))}
         </div>
 
-        {/* タイトル */}
-        <h3 className="text-base font-semibold leading-snug line-clamp-2 text-gray-900 group-hover:text-blue-600">
-          {title}
-        </h3>
+        <h2 className="text-lg font-semibold line-clamp-2">{blog.title}</h2>
 
-        {/* 要約 */}
-        {summary && (
-          <p className="text-sm text-gray-600 line-clamp-3">{summary}</p>
-        )}
+        <p className="text-sm text-gray-600 line-clamp-2">{blog.summary}</p>
+
+        <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
+          <span>{new Date(blog.createdAt).toLocaleDateString()}</span>
+          <span className="flex items-center gap-1">
+            <Eye className="w-4 h-4" />
+            {blog.views}
+          </span>
+        </div>
       </div>
     </Link>
   );

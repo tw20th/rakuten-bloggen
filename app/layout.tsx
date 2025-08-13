@@ -33,3 +33,4 @@ export default function RootLayout({
     </html>
   );
 }
+export const revalidate = 60 * 60; // 1時間おきにISR再生成

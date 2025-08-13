@@ -1,189 +1,102 @@
-// hooks/useProducts.ts
-"use client";
+// app/hooks/useProducts.ts
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ProductType } from "@/types/product";
-// まだ ProductType がなければ↓を一時的に使ってください（重複定義に注意）
-// export type ProductType = {
-//   id: string; // FirestoreのドキュメントID
-//   productName: string;
-//   imageUrl: string;
-//   price: number;
-//   capacity?: number;
-//   outputPower?: number;
-//   weight?: number;
-//   hasTypeC?: boolean;
-//   tags: string[];
-//   category: string;
-//   views: number;
-//   featureHighlights?: string[];
-//   aiSummary?: string;
-//   priceHistory: { date: string; price: number }[]; // ISO文字列 or "YYYY-MM-DD"
-//   affiliateUrl: string;
-//   createdAt: string;
-//   updatedAt: string;
-// };
+import { useEffect, useState } from "react";
+import {
+  collection,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query,
+  startAfter,
+  DocumentData,
+  QueryDocumentSnapshot,
+} from "firebase/firestore";
+import { ProductType } from "@/types/product";
+import { app } from "@/lib/firebase/client";
 
-type ProductSort = "newest" | "popular" | "price_asc" | "price_desc";
+const PAGE_SIZE = 30;
 
-export type ProductFilters = {
-  tags?: string[];
-  category?: string;
-  hasTypeC?: boolean;
-  minCapacity?: number;
-  maxWeight?: number;
-};
+function getSortFieldAndDirection(sort: string): {
+  field: string;
+  direction: "asc" | "desc";
+} {
+  switch (sort) {
+    case "price-asc":
+      return { field: "price", direction: "asc" };
+    case "price-desc":
+      return { field: "price", direction: "desc" };
+    case "newest":
+    default:
+      return { field: "createdAt", direction: "desc" };
+  }
+}
 
-type ProductsApiResponse = {
-  items: ProductType[];
-  nextCursor?: string;
-};
+export function useProducts(sort: string) {
+  const [products, setProducts] = useState<ProductType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] =
+    useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
-export type UseProductsQuery = {
-  sort?: ProductSort;
-  filters?: ProductFilters;
-  pageSize?: number;
-};
+  const db = getFirestore(app);
+  const colRef = collection(db, "monitoredItems");
 
-type UseProductsOptions = {
-  initialItems: ProductType[];
-  initialCursor?: string;
-  /** true にすると sentinel に入ったら自動で次ページを読み込みます */
-  auto?: boolean;
-  /** 初期クエリ（sort/filters/pageSize） */
-  initialQuery?: UseProductsQuery;
-};
+  // 初期ロード or ソート変更時
+  useEffect(() => {
+    const fetchInitial = async () => {
+      setIsLoading(true);
+      const { field, direction } = getSortFieldAndDirection(sort);
 
-export function useProducts({
-  initialItems,
-  initialCursor,
-  auto = false,
-  initialQuery,
-}: UseProductsOptions) {
-  const [products, setProducts] = useState<ProductType[]>(initialItems);
-  const [cursor, setCursor] = useState<string | undefined>(initialCursor);
-  const [hasMore, setHasMore] = useState<boolean>(!!initialCursor);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+      const q = query(colRef, orderBy(field, direction), limit(PAGE_SIZE));
 
-  // クエリ（filters / sort / pageSize）を保持
-  const [query, setQuery] = useState<UseProductsQuery>(
-    () => initialQuery ?? {}
-  );
+      const snapshot = await getDocs(q);
 
-  // 無限スクロール用の監視ターゲット
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+      const items = snapshot.docs.map((doc) => ({
+        ...(doc.data() as ProductType),
+        id: doc.id,
+      }));
 
-  const buildQueryString = useCallback(
-    (nextCursor?: string) => {
-      const sp = new URLSearchParams();
+      setProducts(items);
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] ?? null);
+      setHasMore(snapshot.docs.length === PAGE_SIZE);
+      setIsLoading(false);
+    };
 
-      if (nextCursor) sp.set("cursor", nextCursor);
-      if (query.pageSize) sp.set("limit", String(query.pageSize));
-      if (query.sort) sp.set("sort", query.sort);
+    fetchInitial();
+  }, [sort]);
 
-      const f = query.filters;
-      if (f) {
-        if (typeof f.hasTypeC === "boolean")
-          sp.set("hasTypeC", String(f.hasTypeC));
-        if (f.category) sp.set("category", f.category);
-        if (typeof f.minCapacity === "number")
-          sp.set("minCapacity", String(f.minCapacity));
-        if (typeof f.maxWeight === "number")
-          sp.set("maxWeight", String(f.maxWeight));
-        if (f.tags && f.tags.length > 0) sp.set("tags", f.tags.join(","));
-      }
-      return sp.toString();
-    },
-    [query]
-  );
-
-  const fetchNext = useCallback(async () => {
-    if (!hasMore || isLoading) return;
+  // 無限スクロール用の読み込み関数
+  const loadMore = async () => {
+    if (isLoading || !hasMore || !lastDoc) return;
 
     setIsLoading(true);
-    try {
-      const qs = buildQueryString(cursor);
-      const res = await fetch(`/api/products${qs ? `?${qs}` : ""}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        console.error("Failed to fetch products:", await res.text());
-        return;
-      }
-      const data = (await res.json()) as ProductsApiResponse;
-      setProducts((prev) => [...prev, ...data.items]);
-      setCursor(data.nextCursor);
-      setHasMore(Boolean(data.nextCursor));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [buildQueryString, cursor, hasMore, isLoading]);
+    const { field, direction } = getSortFieldAndDirection(sort);
 
-  const loadMore = useCallback(async () => {
-    await fetchNext();
-  }, [fetchNext]);
-
-  // クエリ変更時にリセットして再取得（先頭ページから）
-  const reload = useCallback(
-    async (nextQuery?: UseProductsQuery) => {
-      const q = nextQuery ? nextQuery : query;
-      setQuery(q);
-      setIsLoading(true);
-      try {
-        const qs = buildQueryString(undefined);
-        const res = await fetch(`/api/products${qs ? `?${qs}` : ""}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          console.error("Failed to reload products:", await res.text());
-          return;
-        }
-        const data = (await res.json()) as ProductsApiResponse;
-        setProducts(data.items);
-        setCursor(data.nextCursor);
-        setHasMore(Boolean(data.nextCursor));
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [buildQueryString, query]
-  );
-
-  // 無限スクロール: sentinel が可視になったら自動で読み込み
-  useEffect(() => {
-    if (!auto) return;
-    if (!hasMore) return;
-
-    const el = sentinelRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting) {
-          // ビューポートに入ったら次ページ取得
-          void fetchNext();
-        }
-      },
-      { rootMargin: "200px 0px" } // 余裕をもって事前ロード
+    const q = query(
+      colRef,
+      orderBy(field, direction),
+      startAfter(lastDoc),
+      limit(PAGE_SIZE)
     );
 
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [auto, fetchNext, hasMore]);
+    const snapshot = await getDocs(q);
 
-  const state = useMemo(
-    () => ({ products, isLoading, hasMore, cursor, query }),
-    [products, isLoading, hasMore, cursor, query]
-  );
+    const newItems = snapshot.docs.map((doc) => ({
+      ...(doc.data() as ProductType),
+      id: doc.id,
+    }));
+
+    setProducts((prev) => [...prev, ...newItems]);
+    setLastDoc(snapshot.docs[snapshot.docs.length - 1] ?? null);
+    setHasMore(snapshot.docs.length === PAGE_SIZE);
+    setIsLoading(false);
+  };
 
   return {
-    ...state,
-    /** 次ページを手動ロード（ボタン用） */
+    products,
+    isLoading,
+    hasMore,
     loadMore,
-    /** クエリを更新して先頭から再取得 */
-    setQueryAndReload: reload,
-    /** 無限スクロール用の監視ターゲット */
-    sentinelRef,
   };
 }

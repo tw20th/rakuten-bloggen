@@ -1,4 +1,5 @@
-import { onRequest } from "firebase-functions/v2/https";
+// functions/src/scripts/item/generateSummaryFunction.ts
+
 import { logger } from "../../utils/logger";
 import { db } from "../../lib/firebase";
 import { getOpenAIClient } from "../../lib/openai";
@@ -62,20 +63,3 @@ export const runGenerateSummaryTask = async (): Promise<void> => {
     logger.success(`✅ ${data.productName} の aiSummary を保存しました`);
   }
 };
-
-// ✅ HTTP用エクスポート関数（Cloud Functions 用）
-export const generateSummaryFromHighlights = onRequest(
-  {
-    region: "asia-northeast1",
-    timeoutSeconds: 300,
-  },
-  async (_req, res) => {
-    try {
-      await runGenerateSummaryTask();
-      res.status(200).send("aiSummary generation completed.");
-    } catch (err) {
-      logger.error("❌ 要約生成中にエラーが発生しました", err);
-      res.status(500).send("Error generating aiSummary.");
-    }
-  },
-);

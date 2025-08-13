@@ -58,3 +58,5 @@ firebase-debug.log
 # ===========================
 *.tsbuildinfo
 next-env.d.ts
+
+sa_base64.txt

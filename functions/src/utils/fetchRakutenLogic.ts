@@ -1,21 +1,23 @@
-// functions/src/utils/fetchRakutenLogic.ts
-
 import fetch from "node-fetch";
 import * as logger from "firebase-functions/logger";
 import { db } from "../lib/firebase";
-import { RAKUTEN_APPLICATION_ID } from "../config/secrets";
+import {
+  RAKUTEN_APPLICATION_ID,
+  RAKUTEN_AFFILIATE_ID,
+} from "../config/secrets";
 
 export const getRakutenItemsAndSave = async () => {
   const applicationId = RAKUTEN_APPLICATION_ID.value();
+  const affiliateId = RAKUTEN_AFFILIATE_ID.value(); // ✅ 追加
 
-  if (!applicationId) {
-    throw new Error("❌ 楽天APIキーが設定されていません");
+  if (!applicationId || !affiliateId) {
+    throw new Error("❌ 楽天APIキーまたはアフィリエイトIDが未設定です");
   }
 
   const keyword = "モバイルバッテリー";
   const apiUrl = `https://app.rakuten.co.jp/services/api/IchibaItem/Search/20170706?format=json&keyword=${encodeURIComponent(
     keyword,
-  )}&applicationId=${applicationId}&hits=5`;
+  )}&applicationId=${applicationId}&affiliateId=${affiliateId}&hits=10&sort=-updateTimestamp`;
 
   logger.info("🔍 楽天API URL:", apiUrl);
 

@@ -1,16 +1,29 @@
 // app/product/page.tsx
 import { ProductPageClient } from "./ProductPageClient";
-import { dbAdmin } from "@/lib/firebaseAdmin"; // ← ✅ 統一されたAdmin Firestore
+import { dbAdmin } from "@/lib/firebaseAdmin";
 import { ProductType } from "@/types/product";
+import { Query, DocumentData } from "firebase-admin/firestore";
 
-export const dynamic = "force-dynamic"; // SSRで最新反映
+export const dynamic = "force-dynamic";
 
-export default async function ProductPage() {
-  const snapshot = await dbAdmin
-    .collection("monitoredItems")
-    .orderBy("createdAt", "desc")
-    .limit(30)
-    .get();
+export default async function ProductPage({
+  searchParams,
+}: {
+  searchParams: { sort?: string };
+}) {
+  const sort = searchParams.sort ?? "newest";
+
+  let query: Query<DocumentData> = dbAdmin.collection("monitoredItems");
+
+  if (sort === "price-asc") {
+    query = query.orderBy("price", "asc");
+  } else if (sort === "price-desc") {
+    query = query.orderBy("price", "desc");
+  } else {
+    query = query.orderBy("createdAt", "desc");
+  }
+
+  const snapshot = await query.limit(30).get();
 
   const products = snapshot.docs.map((doc) => {
     const data = doc.data();
@@ -22,5 +35,5 @@ export default async function ProductPage() {
     };
   }) as ProductType[];
 
-  return <ProductPageClient products={products} />;
+  return <ProductPageClient products={products} initialSort={sort} />;
 }

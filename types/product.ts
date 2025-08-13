@@ -6,7 +6,7 @@ export type PriceHistoryEntry = {
 };
 
 export type ProductType = {
-  id: string; // Firestore のドキュメントID（monitoredItemsのID）
+  id: string; // ← これを追加
   productName: string;
   imageUrl: string;
   price: number;

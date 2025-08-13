@@ -1,15 +1,8 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { getRakutenItemsAndSave } from "../utils/fetchRakutenLogic";
-import { RAKUTEN_APPLICATION_ID } from "../config/secrets";
+// functions/src/scheduler/fetchDailyItems.ts
 
-export const fetchDailyItems = onSchedule(
-  {
-    schedule: "every day 06:00",
-    timeZone: "Asia/Tokyo",
-    region: "asia-northeast1",
-    secrets: [RAKUTEN_APPLICATION_ID],
-  },
-  async () => {
-    await getRakutenItemsAndSave();
-  },
-);
+import { getRakutenItemsAndSave } from "../utils/fetchRakutenLogic";
+
+// ✅ Cloud Functions に登録せず、ロジック関数として定義
+export const runFetchDailyItems = async () => {
+  await getRakutenItemsAndSave();
+};

@@ -1,32 +1,30 @@
-// types/monitoredItem.ts
-export type PriceRecord = {
-  date: string; // YYYY-MM-DD
+export type PriceHistoryEntry = {
+  date: string; // ISO形式で保存されている
   price: number;
 };
 
-export type MonitoredItemDoc = {
+export type MonitoredItem = {
   productName: string;
   imageUrl: string;
   price: number;
-  capacity?: number;
-  outputPower?: number;
-  weight?: number;
-  hasTypeC?: boolean;
+  capacity: number | null;
+  outputPower: number | null;
+  weight: number | null;
+  hasTypeC: boolean;
   tags: string[];
-  featureHighlights?: string[];
+  category: string;
+  featureHighlights: string[];
   aiSummary: string;
-  priceHistory: PriceRecord[];
+  priceHistory: PriceHistoryEntry[];
   affiliateUrl: string;
-  createdAt?: FirebaseFirestore.Timestamp;
-  updatedAt?: FirebaseFirestore.Timestamp;
+  views: number;
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt: FirebaseFirestore.Timestamp;
 };
-
-// UI で使いやすいように Timestamp を number(ms) に変換した型
-export type MonitoredItem = Omit<
-  MonitoredItemDoc,
+export type MonitoredItemClient = Omit<
+  MonitoredItem,
   "createdAt" | "updatedAt"
 > & {
-  id: string;
-  createdAt: number | null;
-  updatedAt: number | null;
+  createdAt: string;
+  updatedAt: string;
 };

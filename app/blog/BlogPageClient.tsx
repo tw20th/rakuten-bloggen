@@ -1,66 +1,51 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useBlogs } from "@/hooks/useBlogs";
 import { BlogList } from "@/components/blog/BlogList";
 import type { BlogType } from "@/types/blog";
+import { SortSelect } from "@/components/common/SortSelect";
+import { useSortQuery } from "@/hooks/useSortQuery";
+import { InfiniteScroll } from "@/components/common/InfiniteScroll"; // ✅ 追加
 
 type Props = {
   initialItems: BlogType[];
   initialCursor?: string;
+  initialSort: "popular" | "newest" | "oldest";
 };
 
-export function BlogPageClient({ initialItems, initialCursor }: Props) {
+const sortOptions = [
+  { label: "新着順", value: "newest" },
+  { label: "人気順", value: "popular" },
+];
+
+export function BlogPageClient({
+  initialItems,
+  initialCursor,
+  initialSort,
+}: Props) {
+  const { currentSort, updateSort } = useSortQuery();
+  const sort = (currentSort as "newest" | "popular") ?? initialSort;
+
   const { blogs, isLoading, hasMore, loadMore } = useBlogs({
     initialItems,
     initialCursor,
-    auto: true,
     initialQuery: {
-      sort: "newest",
+      sort,
       pageSize: 10,
     },
   });
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!sentinelRef.current || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading) {
-          void loadMore();
-        }
-      },
-      {
-        rootMargin: "200px 0px",
-      }
-    );
-
-    observer.observe(sentinelRef.current);
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, isLoading, loadMore]);
-
   return (
     <div className="space-y-8 max-w-5xl mx-auto px-4 py-8">
+      <SortSelect options={sortOptions} value={sort} onChange={updateSort} />
+
       <BlogList items={blogs} />
 
-      {hasMore && (
-        <div
-          ref={sentinelRef}
-          className="h-12 w-full flex items-center justify-center"
-        >
-          {isLoading ? (
-            <span className="text-gray-500 text-sm">読み込み中…</span>
-          ) : (
-            <span className="text-gray-400 text-sm">
-              スクロールでさらに表示
-            </span>
-          )}
-        </div>
-      )}
+      <InfiniteScroll
+        isLoading={isLoading}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+      />
     </div>
   );
 }

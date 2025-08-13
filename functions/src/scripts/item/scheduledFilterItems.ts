@@ -1,21 +1,19 @@
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { logger } from "firebase-functions";
+// functions/src/scripts/item/scheduledFilterItems.ts
+
+import * as functions from "firebase-functions";
 import { filterAndSaveItems } from "./filterAndSaveItems";
 
-export const scheduledFilterItems = onSchedule(
-  {
-    schedule: "10 6 * * *", // 毎日6:10に実行（東京時間）
-    timeZone: "Asia/Tokyo",
-    region: "asia-northeast1",
-  },
-  async () => {
-    logger.info("⏰ scheduledFilterItems started");
+export const scheduledFilterItems = functions
+  .region("asia-northeast1")
+  .pubsub.schedule("10 6 * * *") // 毎日6:10 JST
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    functions.logger.info("⏰ scheduledFilterItems started");
 
     try {
       await filterAndSaveItems();
-      logger.info("✅ filterAndSaveItems completed successfully");
+      functions.logger.info("✅ filterAndSaveItems completed successfully");
     } catch (error) {
-      logger.error("❌ Error in scheduledFilterItems", error);
+      functions.logger.error("❌ Error in scheduledFilterItems", error);
     }
-  },
-);
+  });

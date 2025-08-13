@@ -1,67 +1,59 @@
 // lib/firestore/fetchProductsPage.ts
-import { dbClient } from "@/lib/firebaseClient";
-import {
-  collection,
-  getDocs,
-  query,
-  orderBy,
-  limit as limitFn,
-  where,
-  startAfter,
-  doc,
-  getDoc,
-  QueryConstraint,
-} from "firebase/firestore";
+import { db } from "@/lib/firebase/server"; // Firebase Admin SDK
 import { ProductType } from "@/types/product";
+import { DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore";
 
-type FetchProductsPageParams = {
+const COLLECTION_NAME = "monitoredItems";
+
+function getSortFieldAndDirection(sort: string): {
+  field: string;
+  direction: "asc" | "desc";
+} {
+  switch (sort) {
+    case "price-asc":
+      return { field: "price", direction: "asc" };
+    case "price-desc":
+      return { field: "price", direction: "desc" };
+    case "newest":
+    default:
+      return { field: "createdAt", direction: "desc" };
+  }
+}
+
+export async function fetchProductsPage(params: {
+  sort: string;
+  limit: number;
   cursor?: string;
-  limit?: number;
-  sort?: "newest" | "popular";
-  filters?: {
-    hasTypeC?: boolean;
-    category?: string;
-    minCapacity?: number;
-    maxWeight?: number;
-    tags?: string[];
-  };
-};
+}): Promise<{
+  products: ProductType[];
+  nextCursor: string | null;
+}> {
+  const { sort, limit: pageSize, cursor } = params;
+  const { field, direction } = getSortFieldAndDirection(sort);
 
-export const fetchProductsPage = async ({
-  cursor,
-  limit = 50,
-  sort = "newest",
-  filters = {},
-}: FetchProductsPageParams = {}): Promise<ProductType[]> => {
-  const ref = collection(dbClient, "monitoredItems");
-  const constraints: QueryConstraint[] = [];
-
-  if (sort === "newest") {
-    constraints.push(orderBy("createdAt", "desc"));
-  } else if (sort === "popular") {
-    constraints.push(orderBy("views", "desc"));
-  }
-
-  if (filters.hasTypeC !== undefined) {
-    constraints.push(where("hasTypeC", "==", filters.hasTypeC));
-  }
-  if (filters.category) {
-    constraints.push(where("category", "==", filters.category));
-  }
+  const colRef = db.collection(COLLECTION_NAME);
+  let q = colRef.orderBy(field, direction).limit(pageSize);
 
   if (cursor) {
-    const cursorDoc = await getDoc(doc(dbClient, "monitoredItems", cursor));
-    if (cursorDoc.exists()) {
-      constraints.push(startAfter(cursorDoc));
+    const cursorDoc = await colRef.doc(cursor).get();
+    if (cursorDoc.exists) {
+      q = q.startAfter(cursorDoc);
     }
   }
 
-  constraints.push(limitFn(limit));
-  const q = query(ref, ...constraints);
-  const snapshot = await getDocs(q);
+  const snapshot = await q.get();
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<ProductType, "id">),
-  }));
-};
+  const products: ProductType[] = [];
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+
+  snapshot.forEach((doc) => {
+    const data = doc.data() as ProductType;
+    products.push({ ...data, id: doc.id }); // ✅ id を明示的に追加
+    lastDoc = doc;
+  });
+
+  return {
+    products,
+    nextCursor: lastDoc ? lastDoc.id : null,
+  };
+}
