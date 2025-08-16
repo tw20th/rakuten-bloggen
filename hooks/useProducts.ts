@@ -1,6 +1,5 @@
 // app/hooks/useProducts.ts
-
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   getDocs,
@@ -8,11 +7,11 @@ import {
   orderBy,
   query,
   startAfter,
-  DocumentData,
-  QueryDocumentSnapshot,
+  type DocumentData,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { ProductType } from "@/types/product";
-import { dbClient as db } from "@/lib/firebaseClient"; // ← 統一：ここだけでOK
+import { type ProductType } from "@/types/product";
+import { dbClient as db } from "@/lib/firebaseClient";
 
 const PAGE_SIZE = 30;
 
@@ -38,64 +37,62 @@ export function useProducts(sort: string) {
   const [lastDoc, setLastDoc] =
     useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
-  const colRef = collection(db, "monitoredItems");
+  // 安定参照（eslint: exhaustive-deps回避）
+  const colRef = useMemo(() => collection(db, "monitoredItems"), []);
 
-  // 初期ロード or ソート変更時
+  // 初期ロード / ソート変更時
   useEffect(() => {
-    const fetchInitial = async () => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoading(true);
+        const { field, direction } = getSortFieldAndDirection(sort);
+        const q = query(colRef, orderBy(field, direction), limit(PAGE_SIZE));
+        const snapshot = await getDocs(q);
+        if (cancelled) return;
+
+        const items = snapshot.docs.map((d) => ({
+          ...(d.data() as ProductType),
+          id: d.id,
+        }));
+        setProducts(items);
+        setLastDoc(snapshot.docs.at(-1) ?? null);
+        setHasMore(snapshot.docs.length === PAGE_SIZE);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sort, colRef]);
+
+  // 無限スクロール
+  const loadMore = async () => {
+    if (isLoading || !hasMore || !lastDoc) return;
+    try {
       setIsLoading(true);
       const { field, direction } = getSortFieldAndDirection(sort);
-
-      const q = query(colRef, orderBy(field, direction), limit(PAGE_SIZE));
+      const q = query(
+        colRef,
+        orderBy(field, direction),
+        startAfter(lastDoc),
+        limit(PAGE_SIZE)
+      );
       const snapshot = await getDocs(q);
 
-      const items = snapshot.docs.map((doc) => ({
+      const newItems = snapshot.docs.map((doc) => ({
         ...(doc.data() as ProductType),
         id: doc.id,
       }));
 
-      setProducts(items);
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] ?? null);
+      setProducts((prev) => [...prev, ...newItems]);
+      setLastDoc(snapshot.docs.at(-1) ?? null);
       setHasMore(snapshot.docs.length === PAGE_SIZE);
+    } finally {
       setIsLoading(false);
-    };
-
-    fetchInitial();
-    // colRef は安定参照なので依存に入れない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort]);
-
-  // 無限スクロール用の読み込み関数
-  const loadMore = async () => {
-    if (isLoading || !hasMore || !lastDoc) return;
-
-    setIsLoading(true);
-    const { field, direction } = getSortFieldAndDirection(sort);
-
-    const q = query(
-      colRef,
-      orderBy(field, direction),
-      startAfter(lastDoc),
-      limit(PAGE_SIZE)
-    );
-
-    const snapshot = await getDocs(q);
-
-    const newItems = snapshot.docs.map((doc) => ({
-      ...(doc.data() as ProductType),
-      id: doc.id,
-    }));
-
-    setProducts((prev) => [...prev, ...newItems]);
-    setLastDoc(snapshot.docs[snapshot.docs.length - 1] ?? null);
-    setHasMore(snapshot.docs.length === PAGE_SIZE);
-    setIsLoading(false);
+    }
   };
 
-  return {
-    products,
-    isLoading,
-    hasMore,
-    loadMore,
-  };
+  return { products, isLoading, hasMore, loadMore };
 }

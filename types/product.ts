@@ -1,35 +1,41 @@
-// types/product.ts
-
+// types/product.ts 置き換え（互換を残しつつ明確化）
 export type PriceHistoryEntry = {
-  date: string; // ISO文字列 or 'YYYY-MM-DD'
+  date: string; // クライアントでは ISO 文字列
   price: number;
 };
 
 export type ProductType = {
-  id: string; // ← これを追加
+  id: string;
   productName: string;
   imageUrl: string;
-  price: number;
-  itemPrice?: number; // 👈 これを追加！
 
-  // スペック（未抽出時は undefined）
+  /** 一次フィールド。UIもDBも基本こちら */
+  price: number;
+
+  /** 旧フィールド（受け取り時だけ読む）。新規書き込み禁止 */
+  itemPrice?: number;
+
+  // 追加で使う可能性のある任意情報
+  brand?: string;
+
+  // specs
   capacity?: number;
   outputPower?: number;
   weight?: number;
   hasTypeC?: boolean;
 
-  // 分類・特徴
+  // taxonomy
   tags: string[];
   category: string;
   featureHighlights?: string[];
   aiSummary?: string;
 
-  // 表示情報
+  // metrics
   views: number;
   priceHistory: PriceHistoryEntry[];
   affiliateUrl: string;
 
-  // 管理用
-  createdAt: string; // ISO文字列または Timestamp → string に統一
+  // meta
+  createdAt: string;
   updatedAt: string;
 };
