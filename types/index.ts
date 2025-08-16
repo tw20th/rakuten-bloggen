@@ -1,6 +1,10 @@
 // types/index.ts
 
-export type { BlogType } from "./blog";
+export type { Blog as BlogType } from "./blog";
+export type { Blog, BlogClient } from "./blog";
+
+export type { TSOrString } from "./firestore";
+export { isTimestamp, tsToISOString } from "./firestore";
 
 export type PriceHistoryEntry = {
   date: string;

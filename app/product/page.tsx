@@ -1,5 +1,5 @@
 // app/product/page.tsx
-import { ProductPageClient } from "./ProductPageClient";
+import ProductPageClient from "./ProductPageClient";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { ProductType } from "@/types/product";
 import { Query, DocumentData } from "firebase-admin/firestore";

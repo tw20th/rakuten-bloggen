@@ -1,14 +1,12 @@
-// hooks/useBlogs.ts
 import { useState } from "react";
-import { fetchBlogsPage } from "@/lib/firestore/blogs";
-import type { BlogType } from "@/types";
+import { fetchBlogsPage } from "@/lib/firestore/blogsClient";
+import type { BlogClient } from "@/types";
 
 type UseBlogsProps = {
-  initialItems: BlogType[];
+  initialItems: BlogClient[];
   initialCursor?: string;
-  auto?: boolean;
   initialQuery?: {
-    sort?: "newest" | "popular";
+    sort?: "newest" | "popular" | "oldest";
     pageSize?: number;
   };
 };
@@ -18,19 +16,22 @@ export function useBlogs({
   initialCursor,
   initialQuery,
 }: UseBlogsProps) {
-  const [blogs, setBlogs] = useState<BlogType[]>(initialItems);
+  const [blogs, setBlogs] = useState<BlogClient[]>(initialItems);
   const [cursor, setCursor] = useState<string | undefined>(initialCursor);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState<boolean>(!!initialCursor);
 
-  // 🔥 sort を stateに保持（loadMoreにも使うため）
   const sort = initialQuery?.sort ?? "newest";
 
   const loadMore = async () => {
-    if (!cursor || isLoading) return;
+    if (!hasMore || isLoading) return;
     setIsLoading(true);
     try {
-      const { items, nextCursor } = await fetchBlogsPage({ cursor, sort }); // 🔥 sortを渡す
+      const { items, nextCursor } = await fetchBlogsPage({
+        cursor,
+        sort,
+        pageSize: initialQuery?.pageSize ?? 20,
+      });
       setBlogs((prev) => [...prev, ...items]);
       setCursor(nextCursor);
       setHasMore(!!nextCursor);
@@ -39,10 +40,5 @@ export function useBlogs({
     }
   };
 
-  return {
-    blogs,
-    isLoading,
-    loadMore,
-    hasMore,
-  };
+  return { blogs, isLoading, loadMore, hasMore };
 }

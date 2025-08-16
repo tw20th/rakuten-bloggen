@@ -1,27 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { incrementBlogViews } from "@/lib/firestore/blogs";
-import type { BlogType } from "@/types";
+import type { BlogClient } from "@/types";
 import { Eye } from "lucide-react";
 
-type Props = {
-  blog: BlogType;
-};
+type Props = { blog: BlogClient };
+
+function excerpt(text: string, n = 80) {
+  const s = (text || "").replace(/\s+/g, " ").trim();
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
 
 export function BlogCard({ blog }: Props) {
-  // 🔥 ブログ詳細ページに遷移したときのみ view カウント
-  useEffect(() => {
-    const isBlogDetail = window.location.pathname.includes(
-      `/blog/${blog.slug}`
-    );
-    if (isBlogDetail) {
-      incrementBlogViews(blog.slug);
-    }
-  }, [blog.slug]);
-
   return (
     <Link
       href={`/blog/${blog.slug}`}
@@ -49,13 +40,19 @@ export function BlogCard({ blog }: Props) {
 
         <h2 className="text-lg font-semibold line-clamp-2">{blog.title}</h2>
 
-        <p className="text-sm text-gray-600 line-clamp-2">{blog.summary}</p>
+        <p className="text-sm text-gray-600 line-clamp-2">
+          {excerpt(blog.content, 100)}
+        </p>
 
         <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
-          <span>{new Date(blog.createdAt).toLocaleDateString()}</span>
+          <span>
+            {blog.createdAt
+              ? new Date(blog.createdAt).toLocaleDateString()
+              : ""}
+          </span>
           <span className="flex items-center gap-1">
             <Eye className="w-4 h-4" />
-            {blog.views}
+            {blog.views ?? 0}
           </span>
         </div>
       </div>

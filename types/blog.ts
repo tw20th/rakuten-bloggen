@@ -1,5 +1,3 @@
-// types/blog.ts
-
 export type Blog = {
   title: string;
   content: string;
@@ -14,8 +12,10 @@ export type Blog = {
   updatedAt: FirebaseFirestore.Timestamp;
 };
 
-// クライアントで使う場合（任意）
 export type BlogClient = Omit<Blog, "createdAt" | "updatedAt"> & {
   createdAt: string;
   updatedAt: string;
 };
+
+// 既存コード互換（BlogType をクライアント型として扱う）
+export type BlogType = BlogClient;

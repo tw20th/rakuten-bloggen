@@ -1,6 +1,8 @@
 // app/api/blogs/route.ts
+
 import { NextResponse } from "next/server";
-import { fetchBlogsPage } from "@/lib/firestore/blogs";
+// import { fetchBlogsPage } from "@/lib/firestore/blogs"; // ← admin混入を避ける
+import { fetchBlogsPage } from "@/lib/firestore/blogsClient"; // ← まずはclient版で統一
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

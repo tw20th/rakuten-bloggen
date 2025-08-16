@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
-  getFirestore,
   limit,
   orderBy,
   query,
@@ -13,7 +12,7 @@ import {
   QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { ProductType } from "@/types/product";
-import { app } from "@/lib/firebase/client";
+import { dbClient as db } from "@/lib/firebaseClient"; // ← 統一：ここだけでOK
 
 const PAGE_SIZE = 30;
 
@@ -39,7 +38,6 @@ export function useProducts(sort: string) {
   const [lastDoc, setLastDoc] =
     useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
-  const db = getFirestore(app);
   const colRef = collection(db, "monitoredItems");
 
   // 初期ロード or ソート変更時
@@ -49,7 +47,6 @@ export function useProducts(sort: string) {
       const { field, direction } = getSortFieldAndDirection(sort);
 
       const q = query(colRef, orderBy(field, direction), limit(PAGE_SIZE));
-
       const snapshot = await getDocs(q);
 
       const items = snapshot.docs.map((doc) => ({
@@ -64,6 +61,8 @@ export function useProducts(sort: string) {
     };
 
     fetchInitial();
+    // colRef は安定参照なので依存に入れない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort]);
 
   // 無限スクロール用の読み込み関数

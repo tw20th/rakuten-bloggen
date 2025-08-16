@@ -8,7 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 type Props = {
-  product: ProductType;
+  product: ProductType; // ← このprop名に合わせて呼び出し側を修正済み
 };
 
 export default function ProductCard({ product }: Props) {
