@@ -1,7 +1,8 @@
 // app/sitemap.ts
 import { dbAdmin } from "@/lib/firebaseAdmin";
 export default async function sitemap() {
-  const base = "https://rakuten-bloggen.vercel.app";
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://rakuten-bloggen.vercel.app";
   const products = await dbAdmin
     .collection("monitoredItems")
     .orderBy("updatedAt", "desc")

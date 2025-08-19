@@ -3,18 +3,27 @@
     {
       "collectionGroup": "monitoredItems",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "price", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
+      "fields": [{ "fieldPath": "price", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "monitoredItems",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "price", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "monitoredItems",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     },
     {
       "collectionGroup": "blogs",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "views", "order": "DESCENDING" }
-      ]
+      "fields": [{ "fieldPath": "views", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "blogs",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []
