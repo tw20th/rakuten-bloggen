@@ -1,3 +1,4 @@
+// /types/blog.ts
 export type Blog = {
   title: string;
   content: string;
@@ -10,12 +11,19 @@ export type Blog = {
   views: number;
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
+
+  // 追加分（P0用）
+  imageUrlOG?: string;
+  jsonLd?: Array<Record<string, unknown>>;
+  ab?: { titleCandidates?: string[]; currentIndex?: number };
+  score?: number;
 };
 
+// クライアント表示用（ISO化）
 export type BlogClient = Omit<Blog, "createdAt" | "updatedAt"> & {
   createdAt: string;
   updatedAt: string;
 };
 
-// 既存コード互換（BlogType をクライアント型として扱う）
+// 既存互換
 export type BlogType = BlogClient;

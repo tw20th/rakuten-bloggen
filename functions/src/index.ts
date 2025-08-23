@@ -1,5 +1,9 @@
 import * as functions from "firebase-functions";
 import { logger } from "firebase-functions";
+import { publishScheduler } from "./scheduler/publishScheduler";
+import { relatedContentWriter } from "./links/relatedContentWriter";
+import { titleAbGenerator } from "./optimize/titleAbGenerator";
+import { rotateAbTitle } from "./optimize/rotateAbTitle";
 
 // 🔐 Secret定義
 import {
@@ -7,6 +11,8 @@ import {
   RAKUTEN_AFFILIATE_ID,
   OPENAI_API_KEY,
   SERVICE_ACCOUNT_KEY,
+  REVALIDATE_ENDPOINT, // 追加
+  REVALIDATE_SECRET,
 } from "./config/secrets";
 
 // 🔧 HTTPハンドラー（v1対応済み）
@@ -25,6 +31,8 @@ const commonSecrets = [
   RAKUTEN_AFFILIATE_ID,
   OPENAI_API_KEY,
   SERVICE_ACCOUNT_KEY,
+  REVALIDATE_ENDPOINT, // 追加
+  REVALIDATE_SECRET, // 追加
 ];
 
 // ✅ fetchRakutenItems：楽天APIから商品取得（HTTP）
@@ -105,3 +113,48 @@ export const fillMissingAffiliateUrlsFunc = functions
     }
   });
 export { normalizeItems } from "./normalize/normalizeItems";
+
+export const runPublishScheduler = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("every day 12:05")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    await publishScheduler(2); // 1日に2本公開（お好みで）
+  });
+
+export const runRelatedContentWriter = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("every day 21:00")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    await relatedContentWriter(50);
+  });
+
+export const runTitleAbGenerator = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("every day 23:00")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    await titleAbGenerator(30);
+  });
+
+// 毎晩：ローテーション（見出し回転→revalidate）
+export const runRotateAbTitle = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("every day 23:05")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    await rotateAbTitle(50);
+  });
+
+export const manualPublish = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .https.onRequest(async (_req, res) => {
+    const slugs = await publishScheduler(1);
+    res.status(200).send({ ok: true, slugs });
+  });

@@ -5,6 +5,7 @@ import "./globals.css";
 import { SEO } from "@/components/SEO";
 import Header from "@/components/common/Header";
 import Footer from "@/components/common/Footer";
+import Script from "next/script"; // ← 追加
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -38,7 +39,7 @@ export const metadata: Metadata = {
   },
 };
 
-// ISR（1時間）…必要なければ削除OK
+// ISR（1時間）
 export const revalidate = 60 * 60;
 
 export default function RootLayout({
@@ -50,6 +51,19 @@ export default function RootLayout({
     <html lang="ja">
       <head>
         <SEO />
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-8L3KN2N3E9"
+          strategy="afterInteractive"
+        />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-8L3KN2N3E9');
+          `}
+        </Script>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
