@@ -4,6 +4,7 @@ import { publishScheduler } from "./scheduler/publishScheduler";
 import { relatedContentWriter } from "./links/relatedContentWriter";
 import { titleAbGenerator } from "./optimize/titleAbGenerator";
 import { rotateAbTitle } from "./optimize/rotateAbTitle";
+import { backfillMonitoredFields } from "./scripts/normalize/backfillMonitoredFields";
 
 // 🔐 Secret定義
 import {
@@ -24,6 +25,9 @@ import { runGenerateSummaryTask } from "./scripts/item/generateSummaryFunction";
 import { runFetchDailyItems } from "./scheduler/fetchDailyItems";
 import { runScheduledBlogMorning } from "./scheduler/scheduledBlogMorning";
 import { filterAndSaveItems } from "./scripts/item/filterAndSaveItems";
+
+export { backfillMonitoredFields } from "./scripts/normalize/backfillMonitoredFields";
+export { updateFromRakuten } from "./scripts/normalize/updateFromRakuten";
 
 // 🧪 共通で使用する Secret 配列
 const commonSecrets = [
@@ -157,4 +161,14 @@ export const manualPublish = functions
   .https.onRequest(async (_req, res) => {
     const slugs = await publishScheduler(1);
     res.status(200).send({ ok: true, slugs });
+  });
+// ✅ 毎日 02:00 (Asia/Tokyo) に backfill を実行
+export const scheduledBackfillMonitored = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("0 2 * * *")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    // 1回でなるべく多く整える。必要に応じて 2000 / 5000 などに変更OK
+    await backfillMonitoredFields(5000);
   });

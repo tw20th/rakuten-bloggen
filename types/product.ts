@@ -38,4 +38,8 @@ export type ProductType = {
   // meta
   createdAt: string;
   updatedAt: string;
+
+  inStock?: boolean | null;
+  reviewAverage?: number | null;
+  reviewCount?: number | null;
 };

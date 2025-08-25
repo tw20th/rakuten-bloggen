@@ -5,10 +5,10 @@ import type { ProductType } from "@/types/product";
 import Image from "next/image";
 import Link from "next/link";
 import { productJsonLd, type SimpleOffer } from "@/lib/seo/jsonld";
-
-// ★ 追加：共通UI
+import { computeBadges } from "@/utils/badges";
 import { BackLink } from "@/components/common/BackLink";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
+import { AffiliateCTA } from "@/components/product/AffiliateCTA"; // ★ 追加
 
 export default async function ProductDetailPage({
   params,
@@ -23,7 +23,14 @@ export default async function ProductDetailPage({
   const data = snap.data()!;
   const product: ProductType = convertToProduct({ id: params.id, ...data });
 
-  // JSON-LD 用 offers（将来 offers[] が入れば自動で AggregateOffer へ）
+  const badges = computeBadges({
+    currentPrice: typeof product.price === "number" ? product.price : undefined,
+    history: product.priceHistory ?? [],
+    inStock: product.inStock ?? undefined,
+    reviewAverage: product.reviewAverage ?? undefined,
+    reviewCount: product.reviewCount ?? undefined,
+  });
+
   const offersFromDoc: SimpleOffer[] | undefined = Array.isArray(
     (data as { offers?: SimpleOffer[] }).offers
   )
@@ -43,7 +50,6 @@ export default async function ProductDetailPage({
         : fallbackSingleOffer,
   });
 
-  // パンくず：カテゴリがあれば差し込む（任意）
   const crumbs = [
     { href: "/", label: "ホーム" },
     { href: "/product", label: "商品一覧" },
@@ -58,6 +64,31 @@ export default async function ProductDetailPage({
     { href: `/product/${product.id}`, label: product.productName },
   ];
 
+  const badgeClass = (t: (typeof badges)[number]["type"]) => {
+    const map: Record<string, string> = {
+      "price-drop":
+        "bg-green-100 text-green-700 px-2 py-0.5 text-xs rounded-full",
+      "lowest-update":
+        "bg-blue-100 text-blue-700 px-2 py-0.5 text-xs rounded-full",
+      "high-rating":
+        "bg-yellow-100 text-yellow-700 px-2 py-0.5 text-xs rounded-full",
+      restock: "bg-amber-100 text-amber-700 px-2 py-0.5 text-xs rounded-full",
+    };
+    return (
+      map[t] ?? "bg-gray-100 text-gray-700 px-2 py-0.5 text-xs rounded-full"
+    );
+  };
+
+  const hist = (product.priceHistory ?? [])
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const pastPrices = hist.map((h) => h.price);
+  const minPast = pastPrices.length > 0 ? Math.min(...pastPrices) : undefined;
+  const avgPast =
+    pastPrices.length > 0
+      ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
+      : undefined;
+
   return (
     <main className="max-w-4xl mx-auto p-6">
       <script
@@ -65,13 +96,23 @@ export default async function ProductDetailPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* ▼ パンくず＋戻る */}
       <Breadcrumbs items={crumbs} />
       <div className="mb-4">
         <BackLink label="商品一覧へ戻る" />
       </div>
 
-      <h1 className="text-2xl font-bold mb-4">{product.productName}</h1>
+      <h1 className="text-2xl font-bold mb-2">{product.productName}</h1>
+
+      {/* バッジ */}
+      {badges.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {badges.map((b, i) => (
+            <span key={`${b.type}-${i}`} className={badgeClass(b.type)}>
+              {b.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-1/2">
@@ -87,10 +128,31 @@ export default async function ProductDetailPage({
         <div className="w-full md:w-1/2 space-y-2 text-base">
           <p>
             <strong>価格:</strong>{" "}
-            {typeof product.price === "number"
+            {typeof product.price === "number" && product.price > 0
               ? `¥${product.price.toLocaleString()}`
               : "ー"}
           </p>
+
+          {/* ▼ 価格補助行 */}
+          {typeof product.price === "number" &&
+            (minPast !== undefined || avgPast !== undefined) && (
+              <p className="text-sm text-gray-600">
+                {minPast !== undefined &&
+                  (product.price <= minPast
+                    ? "過去最安値です"
+                    : `過去最安: ¥${minPast.toLocaleString()}`)}
+                {avgPast !== undefined && (
+                  <>
+                    {minPast !== undefined ? " / " : ""}
+                    平均比: {Math.sign(product.price - avgPast) < 0 ? "−" : "+"}
+                    {Math.abs(
+                      Math.round(((product.price - avgPast) / avgPast) * 100)
+                    )}
+                    %
+                  </>
+                )}
+              </p>
+            )}
 
           <p>
             <strong>容量:</strong>{" "}
@@ -108,7 +170,6 @@ export default async function ProductDetailPage({
             <strong>Type-C対応:</strong> {product.hasTypeC ? "はい" : "いいえ"}
           </p>
 
-          {/* タグ導線（存在時） */}
           {Array.isArray(product.tags) && product.tags.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {product.tags.map((t) => (
@@ -123,7 +184,6 @@ export default async function ProductDetailPage({
             </div>
           )}
 
-          {/* 特徴ハイライト（存在時） */}
           {Array.isArray(product.featureHighlights) &&
             product.featureHighlights.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -140,14 +200,16 @@ export default async function ProductDetailPage({
 
           {product.affiliateUrl && (
             <div className="mt-4">
-              <Link
+              {/* ここを Link から置き換え */}
+              <AffiliateCTA
                 href={product.affiliateUrl}
-                target="_blank"
-                rel="sponsored nofollow noopener noreferrer"
-                className="inline-block bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-              >
-                🔗 楽天で見る
-              </Link>
+                itemId={product.id}
+                itemName={product.productName}
+                price={
+                  typeof product.price === "number" ? product.price : undefined
+                }
+                label="楽天で見る"
+              />
             </div>
           )}
         </div>
