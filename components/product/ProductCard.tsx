@@ -12,7 +12,7 @@ import { computeBadges } from "@/utils/badges";
 type ProductWithHistory = ProductType & {
   priceHistory?: PriceHistoryEntry[];
   affiliateUrl?: string | null;
-  inStock?: boolean;
+  inStock?: boolean | null; // ← ここを null 許容に
   reviewAverage?: number | null;
   reviewCount?: number | null;
 };
