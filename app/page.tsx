@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import type { ProductType } from "@/types/product";
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function Home() {
     return {
       id: d.id,
       productName: data.productName ?? data.displayName ?? "名称不明",
-      imageUrl: data.imageUrl,
+      imageUrl: data.imageUrl ?? "",
       itemPrice: data.itemPrice ?? data.price ?? null,
       affiliateUrl: data.affiliateUrl ?? "",
       tags: data.tags ?? [],
@@ -76,22 +77,28 @@ export default async function Home() {
           </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-          {products.map((p) => (
-            <Link key={p.id} href={`/product/${p.id}`} className="group">
-              <div className="aspect-square overflow-hidden rounded-xl border">
-                {p.imageUrl && (
+          {products.map((p) => {
+            const img = p.imageUrl
+              ? upgradeRakutenImageUrl(p.imageUrl, 600) // ★ 高解像度（カード幅の2倍目安）
+              : "/no-image.png";
+            return (
+              <Link key={p.id} href={`/product/${p.id}`} className="group">
+                <div className="relative aspect-square overflow-hidden rounded-xl border bg-white">
                   <Image
-                    src={p.imageUrl}
+                    src={img}
                     alt={p.productName ?? ""}
-                    width={300}
-                    height={300}
-                    className="w-full h-full object-contain transition-transform group-hover:scale-105"
+                    fill
+                    style={{ objectFit: "contain" }}
+                    // 2col=50vw, 3col=33vw, 6col≈16.6vw
+                    sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 16vw"
+                    priority
+                    className="transition-transform group-hover:scale-105"
                   />
-                )}
-              </div>
-              <p className="mt-2 line-clamp-2 text-sm">{p.productName}</p>
-            </Link>
-          ))}
+                </div>
+                <p className="mt-2 line-clamp-2 text-sm">{p.productName}</p>
+              </Link>
+            );
+          })}
         </div>
       </section>
 

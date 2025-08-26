@@ -28,6 +28,9 @@ import { filterAndSaveItems } from "./scripts/item/filterAndSaveItems";
 
 export { backfillMonitoredFields } from "./scripts/normalize/backfillMonitoredFields";
 export { updateFromRakuten } from "./scripts/normalize/updateFromRakuten";
+export { scheduledDataQuality } from "./scheduler/scheduledDataQuality";
+export { runDataQuality } from "./http/runDataQuality";
+export { runBackfillItemCode } from "./http/runBackfillItemCode";
 
 // 🧪 共通で使用する Secret 配列
 const commonSecrets = [

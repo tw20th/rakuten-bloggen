@@ -1,60 +1,70 @@
-export type FilterCondition = {
+export type Condition = {
   field: string;
-  operator: ">=" | "<=" | "==";
-  value: number | boolean;
+  operator: "==" | "!=" | ">=" | ">" | "<=" | "<";
+  value: string | number | boolean | null;
 };
 
 export type FilterRule = {
   label: string;
-  conditions: FilterCondition[];
+  conditions: Condition[];
   tags: string[];
 };
 
-type ItemSpec = {
-  [key: string]: number | boolean | string | null;
+export type ApplyFilterRulesInput = Record<
+  string,
+  string | number | boolean | null
+>;
+
+export type ApplyFilterRulesResult = {
+  tags: string[];
+  matchedRules: FilterRule[];
+  category?: string; // ← 追加
 };
 
-// ⬇️ 戻り値の型を拡張
-export const applyFilterRules = (
-  item: ItemSpec,
-  rules: FilterRule[],
-): { tags: string[]; matchedRules: FilterRule[] } => {
-  const matchedTags: string[] = [];
-  const matchedRules: FilterRule[] = [];
-
-  for (const rule of rules) {
-    const isMatch = rule.conditions.every((cond) => {
-      const fieldValue = item[cond.field];
-
-      if (typeof fieldValue === "undefined" || fieldValue === null)
+const pass = (input: ApplyFilterRulesInput, rule: FilterRule): boolean => {
+  return rule.conditions.every((c) => {
+    const v = input[c.field];
+    switch (c.operator) {
+      case "==":
+        return v === c.value;
+      case "!=":
+        return v !== c.value;
+      case ">=":
+        return (
+          typeof v === "number" && typeof c.value === "number" && v >= c.value
+        );
+      case ">":
+        return (
+          typeof v === "number" && typeof c.value === "number" && v > c.value
+        );
+      case "<=":
+        return (
+          typeof v === "number" && typeof c.value === "number" && v <= c.value
+        );
+      case "<":
+        return (
+          typeof v === "number" && typeof c.value === "number" && v < c.value
+        );
+      default:
         return false;
+    }
+  });
+};
 
-      switch (cond.operator) {
-        case "==":
-          return fieldValue === cond.value;
-        case ">=":
-          return (
-            typeof fieldValue === "number" &&
-            fieldValue >= (cond.value as number)
-          );
-        case "<=":
-          return (
-            typeof fieldValue === "number" &&
-            fieldValue <= (cond.value as number)
-          );
-        default:
-          return false;
-      }
-    });
+export function applyFilterRules(
+  input: ApplyFilterRulesInput,
+  rules: FilterRule[],
+): ApplyFilterRulesResult {
+  const matched: FilterRule[] = [];
+  const tagSet = new Set<string>();
 
-    if (isMatch) {
-      matchedTags.push(...rule.tags);
-      matchedRules.push(rule); // ⬅️ 追加
+  for (const r of rules) {
+    if (pass(input, r)) {
+      matched.push(r);
+      r.tags.forEach((t) => tagSet.add(t));
     }
   }
 
-  return {
-    tags: [...new Set(matchedTags)],
-    matchedRules,
-  };
-};
+  const category = matched[0]?.label; // 最初に当たったルール名を採用
+  return { tags: Array.from(tagSet), matchedRules: matched, category };
+}

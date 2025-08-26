@@ -1,18 +1,25 @@
 // components/blog/RelatedProduct.tsx
 import type { Item } from "@/types/item";
 import Image from "next/image";
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl"; // ★ 追加
 
 export default function RelatedProduct({ item }: { item: Item }) {
+  const imgHi = item.imageUrl
+    ? upgradeRakutenImageUrl(item.imageUrl, 800) // ★ 高解像度指定
+    : "/no-image.png";
+
   return (
     <div className="border p-4 rounded">
       <h3 className="text-lg font-bold mb-2">{item.displayName}</h3>
-      <Image
-        src={item.imageUrl}
-        alt={item.displayName ?? "商品画像"}
-        width={400}
-        height={300}
-        className="w-full h-auto mb-2"
-      />
+      <div className="relative w-full aspect-video mb-2 bg-white rounded">
+        <Image
+          src={imgHi}
+          alt={item.displayName ?? "商品画像"}
+          fill
+          style={{ objectFit: "contain" }}
+          sizes="(max-width: 640px) 100vw, 400px"
+        />
+      </div>
       <p className="text-sm text-gray-700">{item.description}</p>
       <a
         href={item.affiliateUrl}

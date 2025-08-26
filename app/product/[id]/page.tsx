@@ -8,7 +8,10 @@ import { productJsonLd, type SimpleOffer } from "@/lib/seo/jsonld";
 import { computeBadges } from "@/utils/badges";
 import { BackLink } from "@/components/common/BackLink";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
-import { AffiliateCTA } from "@/components/product/AffiliateCTA"; // ★ 追加
+import { AffiliateCTA } from "@/components/product/AffiliateCTA";
+
+// 画像改善
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
 
 export default async function ProductDetailPage({
   params,
@@ -89,6 +92,11 @@ export default async function ProductDetailPage({
       ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
       : undefined;
 
+  // ★ 高解像度画像URL（無ければ空→fallbackでno-image）
+  const imgHi = product.imageUrl
+    ? upgradeRakutenImageUrl(product.imageUrl, 1000)
+    : "";
+
   return (
     <main className="max-w-4xl mx-auto p-6">
       <script
@@ -116,13 +124,17 @@ export default async function ProductDetailPage({
 
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-1/2">
-          <Image
-            src={product.imageUrl || "/no-image.png"}
-            alt={product.productName}
-            width={400}
-            height={400}
-            className="rounded-lg shadow object-contain w-full h-auto bg-white"
-          />
+          {/* 正方形エリアでボケないように contain */}
+          <div className="relative w-full aspect-square bg-white rounded-lg shadow">
+            <Image
+              src={imgHi || "/no-image.png"}
+              alt={product.productName}
+              fill
+              style={{ objectFit: "contain" }}
+              sizes="(max-width: 768px) 100vw, 512px"
+              priority
+            />
+          </div>
         </div>
 
         <div className="w-full md:w-1/2 space-y-2 text-base">
@@ -133,7 +145,7 @@ export default async function ProductDetailPage({
               : "ー"}
           </p>
 
-          {/* ▼ 価格補助行 */}
+          {/* 価格補助行 */}
           {typeof product.price === "number" &&
             (minPast !== undefined || avgPast !== undefined) && (
               <p className="text-sm text-gray-600">
@@ -200,7 +212,6 @@ export default async function ProductDetailPage({
 
           {product.affiliateUrl && (
             <div className="mt-4">
-              {/* ここを Link から置き換え */}
               <AffiliateCTA
                 href={product.affiliateUrl}
                 itemId={product.id}

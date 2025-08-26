@@ -26,7 +26,7 @@ export const filterAndSaveItems = async () => {
     const weight = extractWeight(description);
     const hasTypeC = checkTypeC(description);
 
-    // --- 目立つ特徴 & タグ/カテゴリ ---
+    // --- 特徴抽出 ---
     const featureHighlights = generateFeatureHighlights({
       capacity,
       outputPower,
@@ -34,21 +34,32 @@ export const filterAndSaveItems = async () => {
       hasTypeC,
     });
 
-    const { tags, matchedRules } = applyFilterRules(
-      { capacity, outputPower, weight, hasTypeC, itemName: src.itemName },
+    // ✅ category を utils 側からもらう（後述の utils 変更が前提）
+    const {
+      tags,
+      matchedRules,
+      category: ruleCategory,
+    } = applyFilterRules(
+      {
+        capacity,
+        outputPower,
+        weight,
+        hasTypeC,
+        itemName: src.itemName,
+      },
       itemFilterRules,
     );
-    const category = matchedRules[0]?.label ?? "";
+    const category = ruleCategory ?? matchedRules[0]?.label ?? "";
 
     // --- 保存先 doc ---
-    const id = doc.id.replace(/:/g, "-"); // e.g. "anker:10000641" → "anker-10000641"
+    const id = doc.id.replace(/:/g, "-"); // 表示・URL用
     const ref = db.collection("monitoredItems").doc(id);
 
     const now = Timestamp.now();
     const snap = await ref.get();
     const prev = snap.exists ? snap.data() : null;
 
-    // --- 価格決定 & 履歴重複防止 ---
+    // --- 価格決定 & 履歴 ---
     const price: number = typeof src.itemPrice === "number" ? src.itemPrice : 0;
     const prevLast =
       Array.isArray(prev?.priceHistory) && prev!.priceHistory.length
@@ -60,7 +71,7 @@ export const filterAndSaveItems = async () => {
       ? [...(prev?.priceHistory ?? []), { date: now, price }]
       : (prev?.priceHistory ?? []);
 
-    // --- AI要約（保存時に空なら生成）---
+    // --- AI要約（空なら生成）---
     let aiSummary: string = prev?.aiSummary ?? "";
     if (!aiSummary) {
       const featureText =
@@ -71,15 +82,16 @@ export const filterAndSaveItems = async () => {
       try {
         aiSummary = await generateSummaryFromFeatures(featureText);
       } catch {
-        aiSummary = ""; // 失敗時は空のまま（次回の実行で再挑戦）
+        aiSummary = "";
       }
     }
 
-    // --- 書き込み本体 ---
+    // ✅ ここで raw の itemCode を持たせる
     const payload = {
+      itemCode: doc.id as string, // ← 追加（例: "shop:123"）
       productName: extractShortTitle(src.itemName),
       imageUrl: src.imageUrl ?? "",
-      price, // 一次フィールド
+      price,
       capacity,
       outputPower,
       weight,
@@ -88,11 +100,11 @@ export const filterAndSaveItems = async () => {
       category,
       featureHighlights,
       aiSummary,
-      affiliateUrl: src.affiliateUrl ?? "", // 欠損は別タスクで再取得
+      affiliateUrl: src.affiliateUrl ?? "",
       views: prev?.views ?? 0,
-      createdAt: prev?.createdAt ?? src.createdAt ?? now, // 初回のみ固定
+      createdAt: prev?.createdAt ?? src.createdAt ?? now,
       updatedAt: now,
-      priceHistory, // 並び順を保持したまま上書き
+      priceHistory,
     };
 
     await ref.set(payload, { merge: true });

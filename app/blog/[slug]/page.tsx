@@ -8,9 +8,13 @@ import type { Blog } from "@/types";
 import { FieldValue } from "firebase-admin/firestore";
 import { isTimestamp, tsToISOString } from "@/types";
 
-// ★ 追加：共通UI
+// 共通UI
 import { BackLink } from "@/components/common/BackLink";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
+
+// 画像改善
+import Image from "next/image";
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
 
 export default async function BlogDetailPage({
   params,
@@ -29,6 +33,9 @@ export default async function BlogDetailPage({
   });
 
   const createdAtString = tsToISOString(rawBlog.createdAt);
+  const heroImg = rawBlog.imageUrl
+    ? upgradeRakutenImageUrl(rawBlog.imageUrl, 1000) // 高解像度で取得
+    : null;
 
   // 関連アイテム（存在しない場合は null）
   const itemRef = db.doc(`rakutenItems/${rawBlog.relatedItemCode}`);
@@ -48,7 +55,7 @@ export default async function BlogDetailPage({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
-      {/* ▼ パンくず（SEO/回遊） */}
+      {/* パンくず */}
       <Breadcrumbs
         items={[
           { href: "/", label: "ホーム" },
@@ -57,13 +64,27 @@ export default async function BlogDetailPage({
         ]}
       />
 
-      {/* ▼ 戻る導線 */}
+      {/* 戻る導線 */}
       <div className="mb-4">
         <BackLink />
       </div>
 
       {/* タイトル */}
       <h1 className="text-3xl font-bold mb-4">{rawBlog.title}</h1>
+
+      {/* ヒーロー画像（高解像度） */}
+      {heroImg && (
+        <div className="relative w-full h-64 md:h-80 mb-6 overflow-hidden rounded-xl bg-white">
+          <Image
+            src={heroImg}
+            alt={rawBlog.title}
+            fill
+            style={{ objectFit: "cover" }}
+            sizes="(max-width: 768px) 100vw, 768px"
+            priority
+          />
+        </div>
+      )}
 
       {/* メタ情報 */}
       <p className="text-sm text-gray-500 mb-6">
@@ -73,10 +94,10 @@ export default async function BlogDetailPage({
         ) : null}
       </p>
 
-      {/* 本文（Markdownレンダラ） */}
+      {/* 本文 */}
       <Markdown content={rawBlog.content} />
 
-      {/* 関連商品（任意表示） */}
+      {/* 関連商品 */}
       {relatedItem && (
         <div className="mt-10">
           <h2 className="text-xl font-semibold mb-4">関連商品</h2>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { BlogClient } from "@/types";
 import { Eye } from "lucide-react";
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl"; // ★ 追加
 
 type Props = { blog: BlogClient };
 
@@ -13,18 +14,21 @@ function excerpt(text: string, n = 80) {
 }
 
 export function BlogCard({ blog }: Props) {
+  const img = blog.imageUrl ? upgradeRakutenImageUrl(blog.imageUrl, 800) : null; // ★ 追加
+
   return (
     <Link
       href={`/blog/${blog.slug}`}
       className="block rounded-xl border border-gray-200 hover:shadow-md transition-shadow bg-white"
     >
-      {blog.imageUrl && (
+      {img && (
         <div className="relative w-full h-48 overflow-hidden rounded-t-xl">
           <Image
-            src={blog.imageUrl}
+            src={img} // ★ 変更
             alt={blog.title}
             fill
             className="object-cover"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" // ★ 追加
           />
         </div>
       )}

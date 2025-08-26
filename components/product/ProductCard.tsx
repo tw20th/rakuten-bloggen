@@ -8,6 +8,7 @@ import { Badge as UiBadge } from "@/components/ui/badge";
 import Image from "next/image";
 import Link from "next/link";
 import { computeBadges } from "@/utils/badges";
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl"; // ★ 追加
 
 type ProductWithHistory = ProductType & {
   priceHistory?: PriceHistoryEntry[];
@@ -65,6 +66,7 @@ export default function ProductCard({ product }: Props) {
     pastPrices.length > 0
       ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
       : undefined;
+  const img800 = upgradeRakutenImageUrl(product.imageUrl, 800); // ★ 追加
 
   const priceNumber =
     typeof product.price === "number" && product.price > 0
@@ -92,7 +94,6 @@ export default function ProductCard({ product }: Props) {
 
   return (
     <Card className="hover:shadow-lg transition-shadow duration-200">
-      {/* カード全体を詳細ページへのリンクに */}
       <Link
         href={`/product/${product.id}`}
         className="block"
@@ -100,13 +101,15 @@ export default function ProductCard({ product }: Props) {
         aria-label={`${product.productName} の詳細を見る`}
       >
         <div className="relative">
-          <Image
-            src={product.imageUrl}
-            alt={product.productName}
-            width={500}
-            height={300}
-            className="w-full h-48 object-contain p-4 bg-white"
-          />
+          <div className="relative w-full h-48 bg-white">
+            <Image
+              src={img800 || "/no-image.png"} // ★ 変更
+              alt={product.productName}
+              fill
+              style={{ objectFit: "contain" }} // ★ 変更
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" // ★ 追加
+            />
+          </div>
           {/* バッジ（画像の左上） */}
           {badges.length > 0 && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">

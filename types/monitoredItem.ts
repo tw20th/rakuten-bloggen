@@ -4,6 +4,7 @@ export type PriceHistoryEntry = {
 };
 
 export type MonitoredItem = {
+  itemCode?: string; // ← 追加（将来必須化するならここを必須へ）
   productName: string;
   imageUrl: string;
   price: number;
