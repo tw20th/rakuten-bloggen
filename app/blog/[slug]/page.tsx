@@ -1,4 +1,4 @@
-// app/blog/[slug]/page.tsx
+//app/blog/[slug]/page.tsx
 import { db } from "@/lib/firebase";
 import Markdown from "@/components/ui/Markdown";
 import RelatedProduct from "@/components/blog/RelatedProduct";
@@ -7,14 +7,14 @@ import type { Item } from "@/types/item";
 import type { Blog } from "@/types";
 import { FieldValue } from "firebase-admin/firestore";
 import { isTimestamp, tsToISOString } from "@/types";
-
-// 共通UI
 import { BackLink } from "@/components/common/BackLink";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
-
-// 画像改善
 import Image from "next/image";
 import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
+
+// ★ 追加（すでに作ってある前提。未作成なら僕が出した実装をコピペでOK）
+import AuthorBox from "@/components/common/AuthorBox";
+import AdDisclosure from "@/components/common/AdDisclosure";
 
 export default async function BlogDetailPage({
   params,
@@ -27,17 +27,21 @@ export default async function BlogDetailPage({
 
   const rawBlog = blogSnap.data() as Blog;
 
-  // views +1（失敗しても致命ではないので握りつぶし）
-  blogRef.update({ views: FieldValue.increment(1) }).catch((e) => {
-    console.error("views update failed:", e);
-  });
+  // views +1（失敗は握り潰し）
+  blogRef.update({ views: FieldValue.increment(1) }).catch(() => {});
 
   const createdAtString = tsToISOString(rawBlog.createdAt);
-  const heroImg = rawBlog.imageUrl
-    ? upgradeRakutenImageUrl(rawBlog.imageUrl, 1000) // 高解像度で取得
-    : null;
 
-  // 関連アイテム（存在しない場合は null）
+  // ★ ヒーロー画像優先順位：heroImageUrl > imageUrl(楽天補正)
+  const heroSrc =
+    rawBlog.heroImageUrl ??
+    (rawBlog.imageUrl ? upgradeRakutenImageUrl(rawBlog.imageUrl, 1200) : null);
+
+  const heroCaption =
+    rawBlog.heroCaption ??
+    (rawBlog.heroImageUrl ? "画像：商品公式を加工（背景合成）" : undefined);
+
+  // 関連アイテム
   const itemRef = db.doc(`rakutenItems/${rawBlog.relatedItemCode}`);
   const itemSnap = await itemRef.get();
   const rawItem = itemSnap.exists ? (itemSnap.data() as Item) : null;
@@ -55,7 +59,6 @@ export default async function BlogDetailPage({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
-      {/* パンくず */}
       <Breadcrumbs
         items={[
           { href: "/", label: "ホーム" },
@@ -64,29 +67,31 @@ export default async function BlogDetailPage({
         ]}
       />
 
-      {/* 戻る導線 */}
       <div className="mb-4">
         <BackLink />
       </div>
 
-      {/* タイトル */}
       <h1 className="text-3xl font-bold mb-4">{rawBlog.title}</h1>
 
-      {/* ヒーロー画像（高解像度） */}
-      {heroImg && (
-        <div className="relative w-full h-64 md:h-80 mb-6 overflow-hidden rounded-xl bg-white">
+      {heroSrc && (
+        <figure className="mb-6">
           <Image
-            src={heroImg}
+            src={heroSrc}
             alt={rawBlog.title}
-            fill
-            style={{ objectFit: "cover" }}
-            sizes="(max-width: 768px) 100vw, 768px"
+            width={1200}
+            height={630}
+            sizes="(max-width: 768px) 92vw, 1200px"
             priority
+            className="rounded-xl object-cover bg-white"
           />
-        </div>
+          {heroCaption && (
+            <figcaption className="mt-2 text-xs text-gray-500">
+              {heroCaption}
+            </figcaption>
+          )}
+        </figure>
       )}
 
-      {/* メタ情報 */}
       <p className="text-sm text-gray-500 mb-6">
         {createdAtString ? new Date(createdAtString).toLocaleDateString() : ""}
         {rawBlog.category ? (
@@ -96,6 +101,21 @@ export default async function BlogDetailPage({
 
       {/* 本文 */}
       <Markdown content={rawBlog.content} />
+
+      {/* ★ 広告表記（CTA付近が理想だが、ブログ下部でもOK） */}
+      <AdDisclosure />
+
+      {/* ★ 著者ボックス（E-E-A-T） */}
+      <AuthorBox
+        name="運営：ChargeScope編集部"
+        title="バッテリー／充電器レビュー"
+        bio="通勤・出張・キャンプの“充電の困りごと”を一次情報で解決します。検証は重量・サイズ・実測出力の3点基準。"
+        avatarUrl="/author.jpg" // 適宜差し替え
+        sns={[
+          { label: "X", url: "https://x.com/" },
+          { label: "お問い合わせ", url: "/contact" },
+        ]}
+      />
 
       {/* 関連商品 */}
       {relatedItem && (

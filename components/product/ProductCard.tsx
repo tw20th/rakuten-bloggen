@@ -1,4 +1,3 @@
-// components/product/ProductCard.tsx
 "use client";
 
 import type { ProductType } from "@/types/product";
@@ -8,14 +7,17 @@ import { Badge as UiBadge } from "@/components/ui/badge";
 import Image from "next/image";
 import Link from "next/link";
 import { computeBadges } from "@/utils/badges";
-import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl"; // ★ 追加
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
 
 type ProductWithHistory = ProductType & {
   priceHistory?: PriceHistoryEntry[];
-  affiliateUrl?: string | null;
-  inStock?: boolean | null; // ← ここを null 許容に
+  inStock?: boolean | null;
   reviewAverage?: number | null;
   reviewCount?: number | null;
+
+  // 追加で扱う可能性のあるフィールド
+  amazonAffiliateUrl?: string | null;
+  rakutenAffiliateUrl?: string | null;
 };
 
 type Props = { product: ProductWithHistory };
@@ -39,7 +41,7 @@ const getAffiliateSource = (url?: string | null): string | undefined => {
     if (host.includes("rakuten")) return "rakuten";
     if (host.includes("amazon")) return "amazon";
     if (host.includes("shopping.yahoo")) return "yahoo";
-    return host; // fallback: ホスト名
+    return host;
   } catch {
     return undefined;
   }
@@ -66,7 +68,8 @@ export default function ProductCard({ product }: Props) {
     pastPrices.length > 0
       ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
       : undefined;
-  const img800 = upgradeRakutenImageUrl(product.imageUrl, 800); // ★ 追加
+
+  const img800 = upgradeRakutenImageUrl(product.imageUrl, 800);
 
   const priceNumber =
     typeof product.price === "number" && product.price > 0
@@ -82,15 +85,30 @@ export default function ProductCard({ product }: Props) {
     });
   };
 
-  const handleAffiliateClick = () => {
+  // クリック時にURLごとに送信
+  const sendAffiliateEvent = (url?: string | null) => {
+    if (!url) return;
     track("affiliate_click", {
       item_id: product.id,
       item_name: product.productName,
       price: priceNumber,
-      affiliate_source: getAffiliateSource(product.affiliateUrl),
+      affiliate_source: getAffiliateSource(url),
       value: 1,
     });
   };
+
+  // 表示用リンクの決定
+  const rakutenUrl =
+    product.rakutenAffiliateUrl ??
+    (product.affiliateUrl &&
+    getAffiliateSource(product.affiliateUrl) === "rakuten"
+      ? product.affiliateUrl
+      : null);
+
+  const amazonUrl = product.amazonAffiliateUrl ?? null;
+
+  const fallbackUrl =
+    !rakutenUrl && !amazonUrl ? product.affiliateUrl ?? null : null;
 
   return (
     <Card className="hover:shadow-lg transition-shadow duration-200">
@@ -103,13 +121,14 @@ export default function ProductCard({ product }: Props) {
         <div className="relative">
           <div className="relative w-full h-48 bg-white">
             <Image
-              src={img800 || "/no-image.png"} // ★ 変更
+              src={img800 || "/no-image.png"}
               alt={product.productName}
               fill
-              style={{ objectFit: "contain" }} // ★ 変更
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" // ★ 追加
+              style={{ objectFit: "contain" }}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
           </div>
+
           {/* バッジ（画像の左上） */}
           {badges.length > 0 && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
@@ -123,7 +142,7 @@ export default function ProductCard({ product }: Props) {
                       ? "bg-blue-100 text-blue-700 px-2 py-0.5 text-xs rounded-full"
                       : b.type === "high-rating"
                       ? "bg-yellow-100 text-yellow-700 px-2 py-0.5 text-xs rounded-full"
-                      : "bg-amber-100 text-amber-700 px-2 py-0.5 text-xs rounded-full" // restock
+                      : "bg-amber-100 text-amber-700 px-2 py-0.5 text-xs rounded-full"
                   }
                 >
                   {b.label}
@@ -172,19 +191,50 @@ export default function ProductCard({ product }: Props) {
         </CardContent>
       </Link>
 
-      {/* 外部リンクCTA（ある場合のみ表示） */}
-      {product.affiliateUrl && (
+      {/* 外部リンクCTA */}
+      {(rakutenUrl || amazonUrl || fallbackUrl) && (
         <div className="px-4 pb-4">
-          <a
-            href={product.affiliateUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleAffiliateClick}
-            className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
-            aria-label="最安値を今すぐチェック（外部サイト）"
-          >
-            最安値を今すぐチェック
-          </a>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {rakutenUrl && (
+              <a
+                href={rakutenUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendAffiliateEvent(rakutenUrl)}
+                className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
+                aria-label="楽天で見る（外部サイト）"
+              >
+                楽天で見る
+              </a>
+            )}
+
+            {amazonUrl && (
+              <a
+                href={amazonUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendAffiliateEvent(amazonUrl)}
+                className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
+                aria-label="Amazonで見る（外部サイト）"
+              >
+                Amazonで見る
+              </a>
+            )}
+
+            {/* どちらも無ければ従来の1ボタン */}
+            {!rakutenUrl && !amazonUrl && fallbackUrl && (
+              <a
+                href={fallbackUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendAffiliateEvent(fallbackUrl)}
+                className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
+                aria-label="最安値を今すぐチェック（外部サイト）"
+              >
+                最安値を今すぐチェック
+              </a>
+            )}
+          </div>
         </div>
       )}
     </Card>

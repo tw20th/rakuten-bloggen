@@ -17,6 +17,10 @@ export type Blog = {
   jsonLd?: Array<Record<string, unknown>>;
   ab?: { titleCandidates?: string[]; currentIndex?: number };
   score?: number;
+
+  // ★ サムネ自動生成で使うフィールド（今回追加）
+  heroImageUrl?: string;
+  heroCaption?: string;
 };
 
 // クライアント表示用（ISO化）

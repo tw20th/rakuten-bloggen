@@ -42,4 +42,7 @@ export type ProductType = {
   inStock?: boolean | null;
   reviewAverage?: number | null;
   reviewCount?: number | null;
+
+  amazonAffiliateUrl?: string | null; // ★ Amazonリンク用
+  rakutenAffiliateUrl?: string | null; // ★ 将来の明示的分離用（任意）
 };

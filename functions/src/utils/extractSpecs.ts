@@ -1,14 +1,16 @@
 // utils/extractSpecs.ts
 export const extractCapacity = (text: string): number | null => {
-  const match = text.match(/(\d{3,5})\s?mAh/i);
-  return match ? parseInt(match[1], 10) : null;
+  const m = text.match(/([\d,]{3,7})\s?mAh/i);
+  if (!m) return null;
+  return parseInt(m[1].replace(/,/g, ""), 10);
 };
 
 export const extractOutputPower = (text: string): number | null => {
-  const match = text.match(
-    /最大\s?(\d{1,2}\.?\d{0,2})W|MAX\s?(\d{1,2}\.?\d{0,2})W/i,
-  );
-  const value = match?.[1] || match?.[2];
+  const match =
+    text.match(/最大\s?(\d{1,3}(?:\.\d{1,2})?)\s?W/i) ||
+    text.match(/MAX\s?(\d{1,3}(?:\.\d{1,2})?)\s?W/i) ||
+    text.match(/(\d{2,3})\s?W(?!h)/i); // "65W PD" 等
+  const value = match?.[1];
   return value ? parseFloat(value) : null;
 };
 

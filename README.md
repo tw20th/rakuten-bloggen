@@ -53,3 +53,70 @@ functions/
 
 ❌ 注意
 vercel.json に excludeFiles を書くのは非対応なので使わないでください。
+
+rakuten-bloggen / Functions README
+
+目的：最小運用コストで、毎日コンテンツ生成 → 公開 → 最適化を回しつつ、将来は Amazon API を統合してマルチ ASP 価格比較に拡張する。
+
+1. 現在の構成（v1 Functions / asia-northeast1）
+
+すべて asia-northeast1 に統一（HTTP も Pub/Sub も）
+
+Secrets は functions/src/config/secrets.ts（defineSecret）で管理
+
+RAKUTEN_APPLICATION_ID, RAKUTEN_AFFILIATE_ID, OPENAI_API_KEY,
+SERVICE_ACCOUNT_KEY, REVALIDATE_ENDPOINT, REVALIDATE_SECRET
+
+ディレクトリ（主要）
+functions/
+src/
+adapters/ # 各ソースの取得アダプタ（rakuten, amazon(空)）
+config/ # secrets など
+http/ # HTTP ハンドラ
+links/ # 内部リンク/関連記事生成
+normalize/ # 取得 →catalogItems への正規化
+optimizer/optimize/ # タイトル AB 回転 etc.
+scheduler/ # Pub/Sub スケジュール呼び出し
+scripts/ # バッチ/メンテ/品質監査
+seo/ # OGP/構造化/ISR
+types/ # Firestore 型
+utils/ # 共通ロジック
+lib/ # Firebase/OpenAI ラッパ
+index.ts # エクスポート/スケジューラ定義
+
+Firestore コレクション（抜粋）
+
+rakutenItems：楽天 API の生データ
+
+catalogItems：正規化された共通商品モデル（将来 Amazon/Yahoo もここへ）
+
+monitoredItems：表示用の最小データ＋ offers[]想定
+
+blogs：生成記事（status: draft|published、relatedItemCode、jsonLd 等）
+
+\_locks：分散ロック (blog:{itemCode} など)
+
+2. 毎日の自動処理（スケジュール）
+   関数名 時刻 (JST) 種別 役割
+   fetchDailyItems 06:00 Pub/Sub 楽天から新着を取得 → rakutenItems 保存
+   scheduledFilterItems 06:10 Pub/Sub スペック抽出・タグ付与 → monitoredItems 更新
+   normalizeItems 07:00 Pub/Sub 各アダプタ出力を catalogItems に正規化・価格履歴
+   scheduledBlogMorning 12:00 Pub/Sub 新着から 1 件ブログ生成（ドラフト）＋ ISR
+   runPublishScheduler 12:05 Pub/Sub 古いドラフトから 2 件 公開＋ OGP/構造化/ISR
+   scheduledBlogEvening 18:50 Pub/Sub 夕方もブログ生成（ドラフト）＋ ISR
+   runPublishSchedulerEvening 19:05 Pub/Sub 夕方も 2 件 公開
+   runRelatedContentWriter 21:00 Pub/Sub 関連リンク更新（50 件）
+   runTitleAbGenerator 23:00 Pub/Sub タイトル AB 案を生成（30 件）
+   runRotateAbTitle 23:05 Pub/Sub AB タイトル回転（簡易ロック付き）＋ ISR
+   scheduledBackfillMonitored 02:00 Pub/Sub monitored の欠損埋め（5000 件）
+   scheduledDataQuality 23:15 Pub/Sub データ品質チェック（監査レポ）
+
+分散ロック：generateBlogFromItem 内で \_locks/blog:{itemCode} を利用し、二重生成を防止。
+
+3. 手動トリガ（HTTP）
+   エンドポイント 用途
+   fetchRakutenItemsFunc 楽天の取得を即時実行
+   generateBlogFromItemFunc ?itemCode=... から単発生成
+   generateSummaryFromHighlightsFunc 要約再生成
+   fillMissingAffiliateUrlsFunc アフィ URL の補完
+   manualPublish ドラフト 1 本を即時公開

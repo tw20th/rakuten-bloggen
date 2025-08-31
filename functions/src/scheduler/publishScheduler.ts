@@ -8,6 +8,7 @@ import {
   buildFaqJsonLd,
 } from "../seo/applyStructuredData";
 import { revalidate } from "../seo/triggerRevalidate";
+import { Timestamp } from "firebase-admin/firestore";
 
 const SITE_BASE =
   process.env.NEXT_PUBLIC_SITE_URL || "https://rakuten-bloggen.vercel.app";
@@ -77,7 +78,7 @@ export async function publishScheduler(n = 2) {
     // 3) Publish & 保存
     await doc.ref.update({
       status: "published",
-      updatedAt: new Date(),
+      updatedAt: Timestamp.now(),
       imageUrlOG: og,
       jsonLd: [articleLd, breadcrumbLd, faqLd].filter(Boolean),
     });

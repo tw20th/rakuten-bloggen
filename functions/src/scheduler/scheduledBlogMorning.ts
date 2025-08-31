@@ -1,48 +1,39 @@
 import { db } from "../lib/firebase";
 import { generateBlogFromItem } from "../utils/generateBlogLogic";
 import { logger } from "firebase-functions";
-import { revalidateMany } from "../utils/revalidate"; // ★ 追加
+import { revalidateMany } from "../seo/triggerRevalidate";
+import { isGenerationEnabled } from "../lib/flags";
+import { pickNextItemCode } from "./_pickNextItem";
+import { setGenState } from "../lib/state";
 
-// 🎯 Cloud Scheduler 用ロジック関数
 export const runScheduledBlogMorning = async (): Promise<void> => {
   logger.info("⏰ scheduledBlogMorning 開始");
 
-  const snapshot = await db
-    .collection("rakutenItems")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
-
-  if (snapshot.empty) {
-    logger.warn("⚠️ 新着商品が見つかりませんでした");
+  if (!(await isGenerationEnabled())) {
+    logger.warn("generationEnabled=false のためスキップ");
     return;
   }
 
-  const doc = snapshot.docs[0];
-  const itemCode = doc.get("itemCode") as string | undefined;
+  const itemCode = await pickNextItemCode();
+  if (!itemCode) return;
 
-  if (!itemCode) {
-    logger.error("❌ itemCode が存在しません");
+  // 二重安全装置（極稀にレースした場合）
+  const dup = await db
+    .collection("blogs")
+    .where("relatedItemCode", "==", itemCode)
+    .limit(1)
+    .get();
+  if (!dup.empty) {
+    logger.info("直前に他プロセスで生成済み。スキップ", { itemCode });
     return;
   }
 
   try {
     const slug = await generateBlogFromItem(itemCode);
-    logger.info("✅ ブログ生成完了", { slug });
-
-    // ★ 生成直後に ISR をキック（一覧 + 詳細）
-    try {
-      await revalidateMany(["/blog", `/blog/${slug}`]);
-      logger.info("🔁 ISR revalidate queued", {
-        paths: ["/blog", `/blog/${slug}`],
-      });
-    } catch (e) {
-      logger.warn("⚠️ ISR revalidate failed", {
-        error: (e as Error).message,
-        slug,
-      });
-    }
+    await setGenState({ lastItemCode: itemCode });
+    logger.info("✅ ブログ生成完了", { slug, itemCode });
+    await revalidateMany(["/blog", `/blog/${slug}`]);
   } catch (err) {
-    logger.error("🚨 ブログ生成中にエラー発生", err as Error);
+    logger.error("🚨 ブログ生成エラー", err as Error);
   }
 };

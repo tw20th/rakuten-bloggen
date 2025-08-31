@@ -1,4 +1,3 @@
-// functions/src/utils/fetchRakutenLogic.ts
 import fetch from "node-fetch";
 import * as logger from "firebase-functions/logger";
 import { db } from "../lib/firebase";
@@ -9,11 +8,11 @@ import {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export const getRakutenItemsAndSave = async (opts?: {
+export async function getRakutenItemsAndSave(opts?: {
   keyword?: string;
   maxPages?: number;
   perPage?: number;
-}) => {
+}) {
   const applicationId = RAKUTEN_APPLICATION_ID.value();
   const affiliateId = RAKUTEN_AFFILIATE_ID.value();
   if (!applicationId || !affiliateId) {
@@ -35,7 +34,6 @@ export const getRakutenItemsAndSave = async (opts?: {
     keyword,
     hits: String(perPage),
     sort: "-updateTimestamp",
-    // ★ レビュー情報を追加で取得
     elements: [
       "itemCode",
       "itemName",
@@ -96,7 +94,6 @@ export const getRakutenItemsAndSave = async (opts?: {
       const docRef = db.collection("rakutenItems").doc(itemCode);
       const existing = await docRef.get();
       if (existing.exists) {
-        // 既存でもレビューが無ければ上書きする（差分更新）
         const cur = existing.data() ?? {};
         const next: any = {};
         if ((cur.reviewAverage ?? null) == null && it.reviewAverage != null)
@@ -122,7 +119,6 @@ export const getRakutenItemsAndSave = async (opts?: {
         imageUrl:
           it.mediumImageUrls?.[0]?.imageUrl ?? it.mediumImageUrls?.[0] ?? "",
         description: it.itemCaption ?? "",
-        // ★ レビューを保存（数値に正規化）
         reviewAverage:
           it.reviewAverage != null ? Number(it.reviewAverage) : null,
         reviewCount: it.reviewCount != null ? Number(it.reviewCount) : null,
@@ -141,4 +137,5 @@ export const getRakutenItemsAndSave = async (opts?: {
   }
 
   logger.info(`✅ 保存完了：新規 ${savedCount} 件`);
-};
+  return savedCount;
+}

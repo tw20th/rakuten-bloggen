@@ -26,11 +26,13 @@ import { runFetchDailyItems } from "./scheduler/fetchDailyItems";
 import { runScheduledBlogMorning } from "./scheduler/scheduledBlogMorning";
 import { filterAndSaveItems } from "./scripts/item/filterAndSaveItems";
 
+import { withLock } from "./utils/lock";
+
 export { backfillMonitoredFields } from "./scripts/normalize/backfillMonitoredFields";
-export { updateFromRakuten } from "./scripts/normalize/updateFromRakuten";
 export { scheduledDataQuality } from "./scheduler/scheduledDataQuality";
 export { runDataQuality } from "./http/runDataQuality";
 export { runBackfillItemCode } from "./http/runBackfillItemCode";
+export { projectToMonitoredItems } from "./normalize/projectToMonitoredItems";
 
 // 🧪 共通で使用する Secret 配列
 const commonSecrets = [
@@ -82,6 +84,11 @@ export const fetchDailyItems = functions
 export const scheduledBlogMorning = functions
   .runWith({ secrets: commonSecrets })
   .region("asia-northeast1")
+  .runWith({
+    secrets: commonSecrets,
+    memory: "1GB", // ← ここを "1GB" に
+    timeoutSeconds: 180,
+  })
   .pubsub.schedule("every day 12:00")
   .timeZone("Asia/Tokyo")
   .onRun(async () => {
@@ -155,7 +162,9 @@ export const runRotateAbTitle = functions
   .pubsub.schedule("every day 23:05")
   .timeZone("Asia/Tokyo")
   .onRun(async () => {
-    await rotateAbTitle(50);
+    await withLock("rotateAbTitle", async () => {
+      await rotateAbTitle(50);
+    });
   });
 
 export const manualPublish = functions
@@ -169,9 +178,29 @@ export const manualPublish = functions
 export const scheduledBackfillMonitored = functions
   .runWith({ secrets: commonSecrets })
   .region("asia-northeast1")
-  .pubsub.schedule("0 2 * * *")
+  // .pubsub.schedule("0 2 * * *")   // ← 旧：毎日
+  .pubsub.schedule("0 2 * * SUN") // ← 新：毎週日曜 02:00 JST
   .timeZone("Asia/Tokyo")
   .onRun(async () => {
-    // 1回でなるべく多く整える。必要に応じて 2000 / 5000 などに変更OK
     await backfillMonitoredFields(5000);
+  });
+
+// 夕方の自動生成（ロジックは朝と同じ関数を使う）
+export const scheduledBlogEvening = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("every day 18:50")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    await runScheduledBlogMorning();
+  });
+
+// 夕方の公開（ドラフトからn件）
+export const runPublishSchedulerEvening = functions
+  .runWith({ secrets: commonSecrets })
+  .region("asia-northeast1")
+  .pubsub.schedule("every day 19:05")
+  .timeZone("Asia/Tokyo")
+  .onRun(async () => {
+    await publishScheduler(2);
   });

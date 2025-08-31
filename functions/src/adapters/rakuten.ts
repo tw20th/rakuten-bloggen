@@ -9,17 +9,17 @@ export const rakutenAdapter: SourceAdapter = {
   async fetchNewItems(): Promise<AdapterItem[]> {
     const docs: RakutenItemDoc[] = await getRakutenItemsFromFirestore();
     return docs.map(
-      (d: RakutenItemDoc): AdapterItem => ({
+      (d): AdapterItem => ({
         id: d.itemCode,
-        productName: d.itemName,
-        imageUrl: d.imageUrl,
-        price: d.itemPrice,
-        url: d.affiliateUrl,
+        productName: d.itemName ?? "",
+        imageUrl: d.imageUrl ?? "",
+        price: typeof d.itemPrice === "number" ? d.itemPrice : undefined,
+        url: d.affiliateUrl ?? undefined,
         specs: {
-          capacity: d.capacity,
-          outputPower: d.outputPower,
-          weight: d.weight,
-          hasTypeC: d.hasTypeC,
+          capacity: d.capacity ?? undefined,
+          outputPower: d.outputPower ?? undefined,
+          weight: d.weight ?? undefined,
+          hasTypeC: d.hasTypeC ?? undefined,
         },
       }),
     );
