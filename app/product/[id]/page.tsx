@@ -1,4 +1,3 @@
-// app/product/[id]/page.tsx
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { convertToProduct } from "@/utils/convertToProduct";
 import type { ProductType } from "@/types/product";
@@ -9,9 +8,14 @@ import { computeBadges } from "@/utils/badges";
 import { BackLink } from "@/components/common/BackLink";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import { AffiliateCTA } from "@/components/product/AffiliateCTA";
-
 // 画像改善
 import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
+
+// このページだけで amazon/rakuten の拡張フィールドを扱えるように型を拡張
+type ProductWithAff = ProductType & {
+  amazonAffiliateUrl?: string | null;
+  rakutenAffiliateUrl?: string | null;
+};
 
 export default async function ProductDetailPage({
   params,
@@ -24,7 +28,10 @@ export default async function ProductDetailPage({
   }
 
   const data = snap.data()!;
-  const product: ProductType = convertToProduct({ id: params.id, ...data });
+  const product = convertToProduct({
+    id: params.id,
+    ...data,
+  }) as ProductWithAff;
 
   const badges = computeBadges({
     currentPrice: typeof product.price === "number" ? product.price : undefined,
@@ -92,10 +99,17 @@ export default async function ProductDetailPage({
       ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
       : undefined;
 
-  // ★ 高解像度画像URL（無ければ空→fallbackでno-image）
+  // 高解像度画像URL（無ければ空→fallbackでno-image）
   const imgHi = product.imageUrl
     ? upgradeRakutenImageUrl(product.imageUrl, 1000)
     : "";
+
+  // ▼ ボタン用URLの決定（存在すれば表示）
+  const rakutenUrl =
+    product.rakutenAffiliateUrl ??
+    (product.affiliateUrl?.includes("rakuten") ? product.affiliateUrl : null);
+
+  const amazonUrl = product.amazonAffiliateUrl ?? null;
 
   return (
     <main className="max-w-4xl mx-auto p-6">
@@ -210,17 +224,51 @@ export default async function ProductDetailPage({
               </div>
             )}
 
-          {product.affiliateUrl && (
-            <div className="mt-4">
-              <AffiliateCTA
-                href={product.affiliateUrl}
-                itemId={product.id}
-                itemName={product.productName}
-                price={
-                  typeof product.price === "number" ? product.price : undefined
-                }
-                label="楽天で見る"
-              />
+          {/* ▼ CTA：楽天 / Amazon を並べて表示（どちらか一方だけでもOK） */}
+          {(rakutenUrl || amazonUrl || product.affiliateUrl) && (
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {rakutenUrl && (
+                <AffiliateCTA
+                  href={rakutenUrl}
+                  itemId={product.id}
+                  itemName={product.productName}
+                  price={
+                    typeof product.price === "number"
+                      ? product.price
+                      : undefined
+                  }
+                  label="楽天で見る"
+                />
+              )}
+
+              {amazonUrl && (
+                <AffiliateCTA
+                  href={amazonUrl}
+                  itemId={product.id}
+                  itemName={product.productName}
+                  price={
+                    typeof product.price === "number"
+                      ? product.price
+                      : undefined
+                  }
+                  label="Amazonで見る"
+                />
+              )}
+
+              {/* どちらも無ければ従来の affiliateUrl を1ボタンで */}
+              {!rakutenUrl && !amazonUrl && product.affiliateUrl && (
+                <AffiliateCTA
+                  href={product.affiliateUrl}
+                  itemId={product.id}
+                  itemName={product.productName}
+                  price={
+                    typeof product.price === "number"
+                      ? product.price
+                      : undefined
+                  }
+                  label="最安値を今すぐチェック"
+                />
+              )}
             </div>
           )}
         </div>

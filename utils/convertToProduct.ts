@@ -1,4 +1,3 @@
-// utils/convertToProduct.ts
 import type { ProductType } from "@/types/product";
 
 type RawDoc = Record<string, unknown>;
@@ -38,7 +37,11 @@ function toBooleanOrNull(v: unknown): boolean | null {
   return typeof v === "boolean" ? v : null;
 }
 
-export function convertToProduct(doc: RawDoc): ProductType {
+// 返り値の型を拡張（Optional なので既存コードに影響なし）
+export function convertToProduct(doc: RawDoc): ProductType & {
+  amazonAffiliateUrl?: string | null;
+  rakutenAffiliateUrl?: string | null;
+} {
   // price
   const priceMaybe =
     toNumberOrUndefined(doc.price) ?? toNumberOrUndefined(doc.itemPrice);
@@ -70,14 +73,24 @@ export function convertToProduct(doc: RawDoc): ProductType {
   const createdAtISO = toISO(doc.createdAt) || new Date().toISOString();
   const updatedAtISO = toISO(doc.updatedAt) || createdAtISO;
 
-  const product: ProductType = {
+  // 追加で受け取りたいアフィリンク（存在すれば素通し）
+  const amazonAffiliateUrl =
+    toStringOr(doc.amazonAffiliateUrl ?? "", "") || null;
+  const rakutenAffiliateUrl =
+    toStringOr(doc.rakutenAffiliateUrl ?? "", "") || null;
+
+  const product: ProductType & {
+    amazonAffiliateUrl?: string | null;
+    rakutenAffiliateUrl?: string | null;
+  } = {
     id: toStringOr(doc.id),
     productName: toStringOr(doc.productName ?? doc.itemName, ""),
     imageUrl: toStringOr(doc.imageUrl, "/no-image.png"),
 
     // ProductType.price が number のため 0 をフォールバック
     price: priceMaybe ?? 0,
-    itemPrice: priceMaybe, // optional なら undefined でもOK
+    // あなたの ProductType に itemPrice があるなら残す（なければ削除OK）
+    itemPrice: priceMaybe,
 
     tags: Array.isArray(doc.tags)
       ? (doc.tags as unknown[]).map((t) =>
@@ -101,6 +114,10 @@ export function convertToProduct(doc: RawDoc): ProductType {
     views,
     createdAt: createdAtISO,
     updatedAt: updatedAtISO,
+
+    // ★ 追加（Optional）
+    amazonAffiliateUrl,
+    rakutenAffiliateUrl,
   };
 
   return product;
