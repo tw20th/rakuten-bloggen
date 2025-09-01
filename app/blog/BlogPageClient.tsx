@@ -5,20 +5,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useBlogs } from "@/hooks/useBlogs";
 import { BlogList } from "@/components/blog/BlogList";
 import type { BlogClient } from "@/types";
-import { SortSelect } from "@/components/common/SortSelect";
-import { useSortQuery } from "@/hooks/useSortQuery";
+import SortControlBlog from "@/components/common/SortControlBlog";
 import { InfiniteScroll } from "@/components/common/InfiniteScroll";
-
-type Props = {
-  initialItems: BlogClient[];
-  initialCursor?: string;
-  initialSort: "popular" | "newest" | "oldest";
-};
-
-const sortOptions = [
-  { label: "新着順", value: "newest" },
-  { label: "人気順", value: "popular" },
-];
+import { parseBlogSortKey, type BlogSortKey } from "@/utils/sort";
 
 // 簡易タグフィルタ（?tag=XXX を操作）
 function TagFilter({ all }: { all: string[] }) {
@@ -59,13 +48,15 @@ function TagFilter({ all }: { all: string[] }) {
   );
 }
 
-export function BlogPageClient({
-  initialItems,
-  initialCursor,
-  initialSort,
-}: Props) {
-  const { currentSort, updateSort } = useSortQuery();
-  const sort = (currentSort as "newest" | "popular" | "oldest") ?? initialSort;
+type Props = {
+  initialItems: BlogClient[];
+  initialCursor?: string;
+  initialSort: "popular" | "newest" | "oldest";
+};
+
+export function BlogPageClient({ initialItems, initialCursor }: Props) {
+  const sp = useSearchParams();
+  const sort: BlogSortKey = parseBlogSortKey(sp.get("sort"));
 
   const { blogs, isLoading, hasMore, loadMore } = useBlogs({
     initialItems,
@@ -80,7 +71,6 @@ export function BlogPageClient({
   );
 
   // ?tag= を実際の表示に適用
-  const sp = useSearchParams();
   const currentTag = (sp.get("tag") ?? "").trim();
   const filteredBlogs: BlogClient[] = useMemo(() => {
     if (!currentTag) return blogs;
@@ -103,7 +93,8 @@ export function BlogPageClient({
       </div>
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <SortSelect options={sortOptions} value={sort} onChange={updateSort} />
+        {/* 並び替え（URL ?sort= を更新） */}
+        <SortControlBlog />
         {allTags.length > 0 && <TagFilter all={allTags} />}
       </div>
 

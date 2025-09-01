@@ -2,25 +2,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSortQuery } from "@/hooks/useSortQuery";
 import { useProducts } from "@/hooks/useProducts";
 import ProductCard from "@/components/product/ProductCard";
-import { SortSelect } from "@/components/common/SortSelect";
 import type { ProductType } from "@/types/product";
-
-type Props = {
-  products: ProductType[]; // 受け取るが未使用（将来SSR最適化用）
-  initialSort: string; // "newest" | "price-asc" | "price-desc"
-};
+import SortControlProduct from "@/components/common/SortControlProduct";
+import { parseProductSortKey, type ProductSortKey } from "@/utils/sort";
 
 // ProductType に tags が optional の想定で安全に扱うための拡張型
 type ProductWithTags = ProductType & { tags?: string[] };
-
-const sortOptions = [
-  { label: "新着順", value: "newest" },
-  { label: "価格の安い順", value: "price-asc" },
-  { label: "価格の高い順", value: "price-desc" },
-];
 
 function TagFilter({ tags }: { tags: string[] }) {
   const sp = useSearchParams();
@@ -59,20 +48,14 @@ function TagFilter({ tags }: { tags: string[] }) {
   );
 }
 
-export default function ProductPageClient({ initialSort }: Props) {
-  const { currentSort, updateSort } = useSortQuery();
+export default function ProductPageClient(): JSX.Element {
+  const sp = useSearchParams();
+  const sortKey: ProductSortKey = parseProductSortKey(sp.get("sort"));
 
-  // URLの初期ソートをマウント時に同期
-  useEffect(() => {
-    if (initialSort && currentSort !== initialSort) {
-      updateSort(initialSort);
-    }
-  }, [initialSort, currentSort, updateSort]);
-
-  const { products, isLoading, hasMore, loadMore } = useProducts(currentSort);
+  const { products, isLoading, hasMore, loadMore } = useProducts(sortKey);
   const loaderRef = useRef<HTMLDivElement | null>(null);
 
-  // 一覧上部のタグ（全体のユニーク）— any を使わず Set で集約
+  // 一覧上部のタグ（全体のユニーク）
   const allTags = useMemo(() => {
     const set = new Set<string>();
     (products as ProductWithTags[]).forEach((p) => {
@@ -82,9 +65,7 @@ export default function ProductPageClient({ initialSort }: Props) {
   }, [products]);
 
   // ?tag= フィルタ（クライアント側で簡易適用）
-  const sp = useSearchParams();
   const currentTag = (sp.get("tag") ?? "").trim();
-
   const filtered: ProductType[] = useMemo(() => {
     if (!currentTag) return products;
     return (products as ProductWithTags[]).filter((p) =>
@@ -114,11 +95,8 @@ export default function ProductPageClient({ initialSort }: Props) {
       </div>
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <SortSelect
-          options={sortOptions}
-          value={currentSort}
-          onChange={updateSort}
-        />
+        {/* 並び替え（URL ?sort= を更新） */}
+        <SortControlProduct />
         {allTags.length > 0 && <TagFilter tags={allTags} />}
       </div>
 

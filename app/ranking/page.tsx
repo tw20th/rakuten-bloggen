@@ -1,4 +1,3 @@
-// app/ranking/page.tsx
 import Link from "next/link";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { convertToProduct } from "@/utils/convertToProduct";
@@ -6,23 +5,15 @@ import type { ProductType } from "@/types/product";
 import type { PriceHistoryEntry } from "@/types/monitoredItem";
 import ProductCard from "@/components/product/ProductCard";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
+import SortControlProduct from "@/components/common/SortControlProduct";
+import {
+  parseProductSortKey,
+  productSortToFirestore,
+  type ProductSortKey,
+} from "@/utils/sort";
 
 export const dynamic = "force-dynamic";
 
-type Props = {
-  searchParams?: { type?: "popular" | "cheap" | "newest" };
-};
-
-const TABS: Array<{
-  key: NonNullable<Props["searchParams"]>["type"];
-  label: string;
-}> = [
-  { key: "popular", label: "人気順" },
-  { key: "cheap", label: "価格の安い順" },
-  { key: "newest", label: "新着順" },
-];
-
-/** Timestamp ライク判定（Firestore Admin/Client両対応） */
 function isTimestampLike(v: unknown): v is { toDate: () => Date } {
   return (
     !!v &&
@@ -58,48 +49,37 @@ function toClientProduct(p: ProductType): ProductType {
   const priceHistory = normalizePriceHistory(
     (p as unknown as { priceHistory?: unknown }).priceHistory
   );
-
   const tagsUnknown = (p as unknown as { tags?: unknown }).tags;
   const tags = Array.isArray(tagsUnknown)
     ? tagsUnknown.filter((t): t is string => typeof t === "string")
     : [];
-
   const priceFromPrice = toNumber((p as unknown as { price?: unknown }).price);
   const priceFromItemPrice = toNumber(
     (p as unknown as { itemPrice?: unknown }).itemPrice
   );
-  const price = priceFromPrice ?? priceFromItemPrice;
+  const price = priceFromPrice ?? priceFromItemPrice ?? 0;
 
   return {
     ...p,
     imageUrl: typeof p.imageUrl === "string" ? p.imageUrl : "",
-    price: typeof price === "number" ? price : 0, // 必須なら0でフォールバック
+    price,
     tags,
-    priceHistory, // ← ここは必ず配列（[]含む）
+    priceHistory,
   };
 }
 
+type Props = { searchParams?: { sort?: ProductSortKey } };
+
 export default async function RankingPage({ searchParams }: Props) {
-  const current = (searchParams?.type ?? "popular") as
-    | "popular"
-    | "cheap"
-    | "newest";
+  const sortKey = parseProductSortKey(searchParams?.sort);
+  const { field, direction } = productSortToFirestore(sortKey);
 
   const col = dbAdmin.collection("monitoredItems");
-  const query =
-    current === "cheap"
-      ? col.orderBy("price", "asc").limit(24)
-      : current === "newest"
-      ? col.orderBy("createdAt", "desc").limit(24)
-      : col.orderBy("views", "desc").limit(24);
-
-  const snapshot = await query.get();
+  const snapshot = await col.orderBy(field, direction).limit(24).get();
 
   const rawProducts: ProductType[] = snapshot.docs.map((doc) =>
     convertToProduct({ id: doc.id, ...doc.data() })
   );
-
-  // ★ クライアント安全に整形
   const products = rawProducts.map(toClientProduct);
 
   return (
@@ -113,25 +93,8 @@ export default async function RankingPage({ searchParams }: Props) {
 
       <header className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">ランキング</h1>
-        <nav className="flex items-center gap-2 text-sm">
-          {TABS.map((t) => {
-            const href =
-              t.key === "popular" ? "/ranking" : `/ranking?type=${t.key}`;
-            const isActive =
-              current === t.key || (!searchParams?.type && t.key === "popular");
-            return (
-              <Link
-                key={t.key}
-                href={href}
-                className={`px-3 py-1 rounded-full border ${
-                  isActive ? "bg-gray-900 text-white" : "hover:bg-gray-100"
-                }`}
-              >
-                {t.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* 並び替え（クライアント完結） */}
+        <SortControlProduct />
       </header>
 
       {products.length === 0 ? (

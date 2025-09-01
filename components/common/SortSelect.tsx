@@ -1,25 +1,26 @@
 import React from "react";
 
-type SortOption = {
-  label: string;
-  value: string;
-};
+export type SortOption = { label: string; value: string };
 
 type SortSelectProps = {
   options: SortOption[];
   value: string;
   onChange: (value: string) => void;
+  id?: string;
 };
 
 export const SortSelect: React.FC<SortSelectProps> = ({
   options,
   value,
   onChange,
+  id = "sort",
 }) => {
   return (
-    <div className="inline-block">
+    <label className="inline-flex items-center gap-2 text-sm" htmlFor={id}>
+      並び替え
       <select
-        className="border rounded px-3 py-2 text-sm"
+        id={id}
+        className="border rounded-md px-3 py-2 text-sm bg-white"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -29,6 +30,6 @@ export const SortSelect: React.FC<SortSelectProps> = ({
           </option>
         ))}
       </select>
-    </div>
+    </label>
   );
 };

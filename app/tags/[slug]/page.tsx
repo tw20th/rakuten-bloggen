@@ -1,4 +1,3 @@
-// app/tags/[slug]/page.tsx
 import Image from "next/image";
 import Link from "next/link";
 import { dbAdmin } from "@/lib/firebaseAdmin";
@@ -7,10 +6,16 @@ import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
 import type { Offer } from "@/types/monitoredItem";
 import type { PriceHistoryEntry } from "@/types/product";
 import { primaryOffer, offerBySource } from "@/utils/offers";
+import SortControlProduct from "@/components/common/SortControlProduct";
+import {
+  parseProductSortKey,
+  productSortToFirestore,
+  type ProductSortKey,
+} from "@/utils/sort";
 
 export const dynamic = "force-dynamic";
 
-// ------------- helpers -----------------
+// helpers -------------------
 type FirestoreTsLike = { toDate: () => Date };
 const isFsTs = (v: unknown): v is FirestoreTsLike =>
   typeof v === "object" &&
@@ -60,7 +65,7 @@ const isOffer = (v: unknown): v is Offer => {
 };
 const readOffers = (raw: unknown): Offer[] =>
   Array.isArray(raw) ? (raw.filter(isOffer) as Offer[]) : [];
-// ---------------------------------------
+// --------------------------
 
 type ProductCard = {
   id: string;
@@ -89,11 +94,12 @@ export async function generateMetadata({
   };
 }
 
-export default async function TagPage({
-  params,
-}: {
+type PageProps = {
   params: { slug: string };
-}) {
+  searchParams?: { sort?: ProductSortKey };
+};
+
+export default async function TagPage({ params, searchParams }: PageProps) {
   const key: TagKey | undefined = parseTagKey(params.slug);
   if (!key) {
     return (
@@ -106,19 +112,21 @@ export default async function TagPage({
     );
   }
 
+  const sortKey = parseProductSortKey(searchParams?.sort);
+  const { field, direction } = productSortToFirestore(sortKey);
+
   const tag = TAGS[key].firestoreTag;
 
   const snap = await dbAdmin
     .collection("monitoredItems")
     .where("tags", "array-contains", tag)
-    .orderBy("createdAt", "desc")
+    .orderBy(field, direction)
     .limit(48)
     .get();
 
   const items: ProductCard[] = snap.docs.map((d) => {
     const data = d.data() as Record<string, unknown>;
 
-    // offers 優先で価格/URLを決定
     const offers = readOffers((data as { offers?: unknown }).offers);
     const pOffer = primaryOffer(offers);
     const rakuten = offerBySource(offers, "rakuten");
@@ -175,11 +183,16 @@ export default async function TagPage({
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">
-          {tdef.label}のモバイルバッテリー
-        </h1>
-        <p className="text-slate-600">{tdef.description}</p>
+      <header className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold">
+            {tdef.label}のモバイルバッテリー
+          </h1>
+          <p className="text-slate-600">{tdef.description}</p>
+        </div>
+
+        {/* 並び替え（クライアント完結） */}
+        <SortControlProduct />
       </header>
 
       {items.length === 0 ? (

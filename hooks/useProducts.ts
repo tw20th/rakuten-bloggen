@@ -1,4 +1,3 @@
-// app/hooks/useProducts.ts
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -12,32 +11,38 @@ import {
 } from "firebase/firestore";
 import { type ProductType } from "@/types/product";
 import { dbClient as db } from "@/lib/firebaseClient";
+import { type ProductSortKey } from "@/utils/sort";
 
 const PAGE_SIZE = 30;
 
-function getSortFieldAndDirection(sort: string): {
-  field: string;
+function getSortFieldAndDirection(sort: ProductSortKey): {
+  field: "createdAt" | "price" | "views" | "capacity" | "reviewAverage";
   direction: "asc" | "desc";
 } {
   switch (sort) {
-    case "price-asc":
+    case "cheap":
       return { field: "price", direction: "asc" };
-    case "price-desc":
-      return { field: "price", direction: "desc" };
     case "newest":
-    default:
       return { field: "createdAt", direction: "desc" };
+    case "capacity-desc":
+      return { field: "capacity", direction: "desc" };
+    case "capacity-asc":
+      return { field: "capacity", direction: "asc" };
+    case "rating-desc":
+      return { field: "reviewAverage", direction: "desc" };
+    case "popular":
+    default:
+      return { field: "views", direction: "desc" };
   }
 }
 
-export function useProducts(sort: string) {
+export function useProducts(sort: ProductSortKey) {
   const [products, setProducts] = useState<ProductType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] =
     useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
-  // 安定参照（eslint: exhaustive-deps回避）
   const colRef = useMemo(() => collection(db, "monitoredItems"), []);
 
   // 初期ロード / ソート変更時
