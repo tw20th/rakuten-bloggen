@@ -1,4 +1,3 @@
-// functions/src/types/monitoredItem.ts
 export type PriceHistoryEntry = { date: string; price: number };
 
 export type Offer = {
@@ -17,7 +16,11 @@ export type Specs = {
   [k: string]: unknown;
 };
 
+// ここに sku を追加（将来的に ASIN ベースの主キーに移行するため）
 export type MonitoredItem = {
+  sku?: string; // 👈 新規追加
+  itemCode?: string; // 👈 既存の互換用として残す
+
   productName: string;
   imageUrl: string | null;
   price: number | null;
@@ -49,3 +52,7 @@ export type MonitoredItem = {
   reviewAverage?: number | null;
   reviewCount?: number | null;
 };
+
+// 共通で使う型を定義
+export type Sku = string;
+export type Source = "rakuten" | "amazon" | "yahoo";

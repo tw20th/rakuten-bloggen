@@ -4,11 +4,13 @@ import Link from "next/link";
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { parseTagKey, TAGS, type TagKey } from "../tagConfig";
 import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
+import type { Offer } from "@/types/monitoredItem";
 import type { PriceHistoryEntry } from "@/types/product";
+import { primaryOffer, offerBySource } from "@/utils/offers";
 
 export const dynamic = "force-dynamic";
 
-// -------- helpers ----------------------------------------------------------
+// ------------- helpers -----------------
 type FirestoreTsLike = { toDate: () => Date };
 const isFsTs = (v: unknown): v is FirestoreTsLike =>
   typeof v === "object" &&
@@ -23,40 +25,42 @@ const toDateFromUnknown = (v: unknown): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
-const isRecent = (v: unknown, days = 7): boolean => {
-  const d = toDateFromUnknown(v);
-  if (!d) return false;
-  return Date.now() - d.getTime() <= days * 24 * 60 * 60 * 1000;
-};
-
 const normalizePriceHistory = (raw: unknown): PriceHistoryEntry[] => {
   if (!Array.isArray(raw)) return [];
   const out: PriceHistoryEntry[] = [];
   for (const e of raw) {
     const priceRaw = (e as Record<string, unknown>)?.price;
     const dateRaw = (e as Record<string, unknown>)?.date;
-
     const price =
       typeof priceRaw === "number"
         ? priceRaw
         : typeof priceRaw === "string"
         ? Number(priceRaw)
         : NaN;
-
     const d = toDateFromUnknown(dateRaw);
     const date = d
       ? d.toISOString()
       : typeof dateRaw === "string"
       ? dateRaw
       : "";
-
-    if (Number.isFinite(price) && date) {
-      // PriceHistoryEntry は { price: number; date: string } の想定
-      out.push({ price, date });
-    }
+    if (Number.isFinite(price) && date) out.push({ price, date });
   }
   return out;
 };
+
+const isOffer = (v: unknown): v is Offer => {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r.source === "string" &&
+    typeof r.price === "number" &&
+    typeof r.url === "string" &&
+    typeof r.fetchedAt === "string"
+  );
+};
+const readOffers = (raw: unknown): Offer[] =>
+  Array.isArray(raw) ? (raw.filter(isOffer) as Offer[]) : [];
+// ---------------------------------------
 
 type ProductCard = {
   id: string;
@@ -71,42 +75,13 @@ type ProductCard = {
   restockedAt?: unknown;
 };
 
-const computeBadges = (p: ProductCard) => {
-  const badges: string[] = [];
-
-  const ph = Array.isArray(p.priceHistory) ? p.priceHistory : [];
-  if (ph.length >= 2) {
-    const last = ph[ph.length - 1]?.price;
-    const prev = ph[ph.length - 2]?.price;
-    if (typeof last === "number" && typeof prev === "number" && last < prev) {
-      badges.push("値下げしました");
-    }
-  }
-
-  if (p.inStock === true && isRecent(p.restockedAt, 7)) {
-    badges.push("在庫復活");
-  }
-
-  if (
-    typeof p.reviewAverage === "number" &&
-    typeof p.reviewCount === "number" &&
-    p.reviewAverage >= 4.5 &&
-    p.reviewCount >= 50
-  ) {
-    badges.push("高評価 4.5★以上");
-  }
-
-  return badges;
-};
-
-// -------- page -------------------------------------------------------------
-type Params = { slug: string };
-
-export async function generateMetadata({ params }: { params: Params }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}) {
   const key = parseTagKey(params.slug);
-  if (!key) {
-    return { title: "見つかりませんでした | ChargeScope" };
-  }
+  if (!key) return { title: "見つかりませんでした | ChargeScope" };
   const t = TAGS[key];
   return {
     title: `${t.label}のモバイルバッテリー | ChargeScope`,
@@ -114,7 +89,11 @@ export async function generateMetadata({ params }: { params: Params }) {
   };
 }
 
-export default async function TagPage({ params }: { params: Params }) {
+export default async function TagPage({
+  params,
+}: {
+  params: { slug: string };
+}) {
   const key: TagKey | undefined = parseTagKey(params.slug);
   if (!key) {
     return (
@@ -137,22 +116,58 @@ export default async function TagPage({ params }: { params: Params }) {
     .get();
 
   const items: ProductCard[] = snap.docs.map((d) => {
-    const data = d.data();
+    const data = d.data() as Record<string, unknown>;
+
+    // offers 優先で価格/URLを決定
+    const offers = readOffers((data as { offers?: unknown }).offers);
+    const pOffer = primaryOffer(offers);
+    const rakuten = offerBySource(offers, "rakuten");
+    const price =
+      typeof pOffer?.price === "number"
+        ? pOffer.price
+        : typeof data.price === "number"
+        ? (data.price as number)
+        : typeof (data as { itemPrice?: unknown }).itemPrice === "number"
+        ? ((data as { itemPrice?: number }).itemPrice as number)
+        : undefined;
+
+    const affiliateUrl =
+      rakuten?.url ??
+      (typeof data.affiliateUrl === "string"
+        ? (data.affiliateUrl as string)
+        : undefined) ??
+      pOffer?.url;
+
     return {
       id: d.id,
-      productName: (data.productName ??
-        data.displayName ??
-        "名称不明") as string,
-      imageUrl: (data.imageUrl ?? "") as string,
-      price: (data.itemPrice ?? data.price ?? undefined) as number | undefined,
-      affiliateUrl: (data.affiliateUrl ?? "") as string,
-      priceHistory: normalizePriceHistory(data.priceHistory),
-      reviewAverage: (data.reviewAverage ?? undefined) as number | undefined,
-      reviewCount: (data.reviewCount ?? undefined) as number | undefined,
-      inStock: (data.inStock ?? undefined) as boolean | undefined,
-      restockedAt: (data.restockedAt ??
-        data.stockRestockedAt ??
-        undefined) as unknown,
+      productName:
+        (typeof data.productName === "string" ? data.productName : undefined) ??
+        (typeof (data as { displayName?: unknown }).displayName === "string"
+          ? ((data as { displayName?: string }).displayName as string)
+          : "名称不明"),
+      imageUrl: (typeof data.imageUrl === "string"
+        ? data.imageUrl
+        : "") as string,
+      price,
+      affiliateUrl,
+      priceHistory: normalizePriceHistory(
+        (data as { priceHistory?: unknown }).priceHistory
+      ),
+      reviewAverage:
+        typeof data.reviewAverage === "number"
+          ? (data.reviewAverage as number)
+          : undefined,
+      reviewCount:
+        typeof data.reviewCount === "number"
+          ? (data.reviewCount as number)
+          : undefined,
+      inStock:
+        typeof data.inStock === "boolean"
+          ? (data.inStock as boolean)
+          : undefined,
+      restockedAt:
+        (data as { restockedAt?: unknown }).restockedAt ??
+        (data as { stockRestockedAt?: unknown }).stockRestockedAt,
     };
   });
 
@@ -175,7 +190,6 @@ export default async function TagPage({ params }: { params: Params }) {
             const img = p.imageUrl
               ? upgradeRakutenImageUrl(p.imageUrl, 600)
               : "/no-image.png";
-            const badges = computeBadges(p);
             return (
               <div key={p.id} className="group">
                 <Link href={`/product/${p.id}`}>
@@ -188,16 +202,6 @@ export default async function TagPage({ params }: { params: Params }) {
                       sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 16vw"
                       className="transition-transform group-hover:scale-105"
                     />
-                    <div className="absolute top-2 left-2 flex flex-col gap-1">
-                      {badges.slice(0, 2).map((b) => (
-                        <span
-                          key={b}
-                          className="rounded bg-black/80 text-white text-[10px] px-2 py-1"
-                        >
-                          {b}
-                        </span>
-                      ))}
-                    </div>
                     {typeof p.price === "number" && (
                       <div className="absolute bottom-2 left-2 rounded-md bg-white/90 px-2 py-1 text-xs font-medium">
                         ¥{p.price.toLocaleString()}
@@ -226,7 +230,6 @@ export default async function TagPage({ params }: { params: Params }) {
         </div>
       )}
 
-      {/* 内部リンク */}
       <section className="mt-8 space-y-3">
         <h2 className="text-lg font-semibold">関連記事・ランキング</h2>
         <ul className="list-disc pl-5 text-sm text-slate-700 space-y-1">

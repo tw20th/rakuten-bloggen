@@ -10,6 +10,7 @@ import { itemFilterRules } from "../../config/itemFilterRules";
 import { applyFilterRules } from "../../utils/applyFilterRules";
 import { generateFeatureHighlights } from "../../utils/generateFeatureHighlights";
 import { db, Timestamp } from "../../lib/firebase";
+import type { Offer } from "../../types/monitoredItem";
 
 // ---- types ----------------------------------------------------
 type RawRakuten = {
@@ -24,13 +25,13 @@ type RawRakuten = {
   createdAt?: FirebaseFirestore.Timestamp | Date | string;
 };
 
-type PriceHistoryEntry = { date: string; price: number }; // ← ISO string に統一
+type PriceHistoryEntry = { date: string; price: number }; // ISO string
 
 const toISO = (d: unknown): string => {
   if (typeof d === "string") return d;
   if (d instanceof Date) return d.toISOString();
   // Firestore Timestamp
-  // @ts-expect-error - timestamp型の場合のみtoDateが存在
+  // @ts-expect-error - Timestamp型のみ toDate が存在
   if (d && typeof d === "object" && typeof d.toDate === "function") {
     // @ts-ignore
     return d.toDate().toISOString();
@@ -38,8 +39,8 @@ const toISO = (d: unknown): string => {
   return new Date().toISOString();
 };
 
-const CHUNK = 10; // 同時実行の上限
-const HIST_MAX = 180; // 履歴の最大保持件数（約半年想定）
+const CHUNK = 10;
+const HIST_MAX = 180;
 
 // ---------------------------------------------------------------
 export const filterAndSaveItems = async () => {
@@ -139,13 +140,40 @@ export const filterAndSaveItems = async () => {
           src.itemName ?? prev?.productName ?? "",
         );
 
-        // --- まとめて upsert ---
+        // --- offers 構築（楽天を今回分で更新） ---
+        const affiliateUrl = (src.affiliateUrl ??
+          prev?.affiliateUrl ??
+          "") as string;
+        const prevOffers: Offer[] = Array.isArray(prev?.offers)
+          ? prev.offers
+          : [];
+
+        const offerRakuten: Offer = {
+          source: "rakuten",
+          price,
+          url: affiliateUrl,
+          fetchedAt: nowISO,
+          inStock: typeof prev?.inStock === "boolean" ? prev.inStock : true,
+        };
+
+        // 同 source（rakuten）を除外して差し替え
+        const offers: Offer[] = [
+          ...prevOffers.filter((o) => o?.source !== "rakuten"),
+          offerRakuten,
+        ];
+
+        // --- sku（暫定は itemCode / 将来 ASIN） ---
+        const sku: string = (prev?.sku ?? src.itemCode ?? id).toString();
+
+        // --- upsert ---
         const payload = {
-          // 元の itemCode は必ず保持
+          // 元の itemCode は保持
           itemCode: doc.id as string,
+          sku,
           productName,
           imageUrl,
-          price,
+          price, // 後方互換（UI移行まで残す）
+          offers,
           capacity,
           outputPower,
           weight,
@@ -154,7 +182,7 @@ export const filterAndSaveItems = async () => {
           category,
           featureHighlights,
           aiSummary, // 生成は別ジョブ
-          affiliateUrl: src.affiliateUrl ?? prev?.affiliateUrl ?? "",
+          affiliateUrl, // 後方互換
           reviewAverage,
           reviewCount,
           views: prev?.views ?? 0,

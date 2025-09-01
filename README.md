@@ -120,3 +120,110 @@ blogs：生成記事（status: draft|published、relatedItemCode、jsonLd 等）
    generateSummaryFromHighlightsFunc 要約再生成
    fillMissingAffiliateUrlsFunc アフィ URL の補完
    manualPublish ドラフト 1 本を即時公開
+
+-------------------------------------------------------------9/1--------------------------
+
+# Amazon API 導入の段取り（実装順）
+
+1. 資格情報の準備・保管
+
+- PA-API v5 のアクセスキー/シークレット、AssociateTag（`xxxx-22` など）を取得。
+- **Firebase Secret Manager**（推奨）か `functions:config:set` に保存
+
+  - `amazon.key` / `amazon.secret` / `amazon.tag` / `amazon.locale=JP` / `amazon.partner=webservices.amazon.co.jp`
+
+2. クライアント実装（utils/paapi.ts）
+
+- 公式 SDK or 署名実装で **SearchItems / GetItems** を叩く薄いラッパーを作成。
+- 共通の **レート制御**（直列化 + 失敗時の指数バックオフ）を必ず入れる。
+- 返却 JSON は生で返さず、**adapter** に渡すだけにする。
+
+3. アダプタ実装（normalize 層）
+
+- `utils/adapters/amazon.ts` を作成して、PA-API レスポンス → 共通モデルへ変換。
+
+  - `ASIN → sku`
+  - `ItemInfo.Title.DisplayValue → productName`
+  - `ByLineInfo.Brand.DisplayValue → brand`
+  - `Images.Primary.Large.URL → imageUrl`
+  - `Offers.Listings[0].Price.Amount → price`
+  - `Offers.Listings[0].Availability.MaxOrderQuantity/IsBuyBoxWinner 等 → inStock`（なければ `Availability.Message` を簡易判定）
+  - `DetailPageURL + associateTag → affiliate URL`（`https://www.amazon.co.jp/dp/ASIN?tag=xxxx-22` を基本に）
+
+- 共通 Offer へ：
+
+  ```ts
+  const offer: Offer = {
+    source: "amazon",
+    price,
+    url: detailUrlWithTag,
+    fetchedAt: new Date().toISOString(),
+    inStock,
+  };
+  ```
+
+4. 取得スクリプト（functions/src/scripts/fetchAmazonItems.ts）
+
+- Seed の作り方は 2 通り：
+
+  - a) 既存 `monitoredItems` のタイトル/JAN/型番から **SearchItems** → ASIN 確定後に **GetItems**。
+  - b) 監視したい ASIN リストを持っているなら **GetItems** 直。
+
+- 保存ロジック：既存 `monitoredItems/{docId}` を開き、`offers` に `offer(source:"amazon")` を **マージ**。`updatedAt` 更新。
+- 画像・タイトルなどが空なら上書き、既に値があれば維持（空潰しのみに変更）。
+
+5. 価格履歴・ポリシー対応
+
+- **Amazon の価格/在庫は 24 時間以上の保存・表示 NG**のため、下記を徹底：
+
+  - `priceHistory` に **amazon ソースは入れても 24h で自動パージ**（夜間の cron で `source==="amazon" && fetchedAt < now-24h` を削除）。
+  - 画面には「Amazon 価格は ○ 時点」と **タイムスタンプ表示**（既に `fetchedAt` があるので簡単）。
+  - 過去グラフは楽天/Yahoo 中心。Amazon は“最新値のみ”の扱いにする。
+
+- 既存の最安判定は `offers` の現在値で OK（履歴は不要）。
+
+6. UI は最小変更で OK（もう “offers 優先” 化済み）
+
+- 追加でやると良い微調整：
+
+  - CTA ラベルをソースごとに出し分け（Prime バッジ等が取れれば表示）。
+  - 価格の下に「更新: HH\:mm」表示。
+  - AdDisclosure に「Amazon アソシエイトで収益を得ています」を明記（済ならスルー）。
+
+7. スケジューラ & フォールバック
+
+- Cloud Scheduler：朝/夕の 2 回 `fetchAmazonItems` を実行。
+- 失敗時はログ + Slack 通知（既存の `alerts.ts` にフック）。
+- 楽天/Yahoo が取れていれば UI は壊れないので、Amazon 失敗時も静かにスキップ。
+
+8. 同一商品の突合（後追いでも可）
+
+- `normalizeItems.ts` に **JAN/EAN/型番 + brand + タイトル類似度** でマージするルールを追加。
+- 既存 `sku` を **ASIN 優先** に切替（なければ旧 `itemCode`）。
+- 重複が出たらマージして `offers` を統合。
+
+9. 運用・監視
+
+- API クォータ/スロットリングのメトリクスをログ化。429 や署名エラーは回数集計。
+- コンバージョン 3 件/180 日ルール維持のため、**Amazon 流入をダッシュボードで可視化**。
+- 価格ゼロや URL 欠落を Daily で検知してリスト化。
+
+10. 仕上げ（テンプレ化）
+
+- `.env.sample` / Secrets のキー名を固定化。
+- Cloud Scheduler ジョブ、Functions のソース 3 ファイル（client, adapter, fetcher）をテンプレとして他サイトへコピペ。
+- AssociateTag をサイトごとに差し替えるだけで量産できる状態に。
+
+---
+
+### 最小実装で必要な新規ファイル/変更点まとめ
+
+- `utils/paapi.ts`（API クライアント）
+- `utils/adapters/amazon.ts`（→ Offer/Catalog 変換）
+- `functions/src/scripts/fetchAmazonItems.ts`（取得＆保存）
+- `functions/src/scripts/cron/purgeAmazonHistory.ts`（24h パージ）
+- （既存）`normalizeItems.ts` に突合ロジック追記
+
+この順で進めれば、**導入 → 表示 → ポリシー準拠 → 量産**までノンストップで到達できます。
+どこから手を付けるか決めたら、そのファイルの雛形を即出します！
+-------------------------------------------------------------9/1--------------------------

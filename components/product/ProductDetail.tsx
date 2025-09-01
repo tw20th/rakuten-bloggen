@@ -3,14 +3,19 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ProductType } from "@/types/product";
 import type { BlogType } from "@/types/blog";
-import { PriceChart } from "./PriceChart"; // components/product/PriceChart.tsx
+import type { Offer } from "@/types/monitoredItem";
+import { PriceChart } from "./PriceChart";
 import { TagBadge } from "@/components/common/TagBadge";
 import { BlogCard } from "@/components/blog/BlogCard";
 import { formatPrice } from "@/lib/utils/formatPrice";
+import { primaryOffer, offerBySource } from "@/utils/offers";
 
 type Props = {
-  product: ProductType;
-  /** 同一 productId の関連記事（SSRで取得して渡す想定） */
+  product: ProductType & {
+    offers?: Offer[];
+    amazonAffiliateUrl?: string | null;
+    rakutenAffiliateUrl?: string | null;
+  };
   relatedBlogs?: BlogType[];
 };
 
@@ -29,7 +34,18 @@ export default function ProductDetail({ product, relatedBlogs }: Props) {
     hasTypeC,
     priceHistory,
     affiliateUrl,
+    offers,
   } = product;
+
+  // --- offers 優先の表示値＆CTA
+  const pOffer = primaryOffer(offers);
+  const displayPrice = typeof pOffer?.price === "number" ? pOffer.price : price;
+  const amazonUrl =
+    offerBySource(offers, "amazon")?.url ?? product.amazonAffiliateUrl ?? null;
+  const rakutenUrl =
+    offerBySource(offers, "rakuten")?.url ??
+    product.rakutenAffiliateUrl ??
+    (affiliateUrl?.includes("rakuten") ? affiliateUrl : null);
 
   const summary =
     (aiSummary && aiSummary.trim().length > 0
@@ -63,20 +79,46 @@ export default function ProductDetail({ product, relatedBlogs }: Props) {
           </div>
 
           <div className="flex items-baseline gap-3">
-            <div className="text-3xl font-bold">{formatPrice(price)}</div>
+            <div className="text-3xl font-bold">
+              {typeof displayPrice === "number" && displayPrice > 0
+                ? formatPrice(displayPrice)
+                : "—"}
+            </div>
             <span className="text-sm text-gray-500">税込・参考</span>
           </div>
 
-          {affiliateUrl && (
-            <div>
-              <Link
-                href={affiliateUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center rounded-lg px-4 py-2 bg-gray-900 text-white hover:opacity-90 transition"
-              >
-                楽天で価格・在庫を見る
-              </Link>
+          {(rakutenUrl || amazonUrl || affiliateUrl) && (
+            <div className="flex gap-2 flex-wrap">
+              {rakutenUrl && (
+                <Link
+                  href={rakutenUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-lg px-4 py-2 bg-gray-900 text-white hover:opacity-90 transition"
+                >
+                  楽天で価格・在庫を見る
+                </Link>
+              )}
+              {amazonUrl && (
+                <Link
+                  href={amazonUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-lg px-4 py-2 border hover:bg-gray-50 transition"
+                >
+                  Amazonで見る
+                </Link>
+              )}
+              {!rakutenUrl && !amazonUrl && affiliateUrl && (
+                <Link
+                  href={affiliateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-lg px-4 py-2 bg-gray-900 text-white hover:opacity-90 transition"
+                >
+                  最安値を今すぐチェック
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -133,7 +175,7 @@ export default function ProductDetail({ product, relatedBlogs }: Props) {
               {typeof hasTypeC === "boolean" && (
                 <tr>
                   <th className="w-40 text-left px-3 py-2 text-gray-500">
-                    Type‑C 対応
+                    Type-C 対応
                   </th>
                   <td className="px-3 py-2">{hasTypeC ? "はい" : "いいえ"}</td>
                 </tr>

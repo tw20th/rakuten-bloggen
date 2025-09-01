@@ -1,16 +1,17 @@
+// utils/convertToProduct.ts
 import type { ProductType } from "@/types/product";
+import type { Offer } from "@/types/monitoredItem";
 
-type RawDoc = Record<string, unknown>;
+// 任意オブジェクト判定
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
 
-// Firestore Timestamp ライク型ガード
+// Firestore Timestamp ライク型ガード（any不使用）
 type TimestampLike = { toDate: () => Date };
 function isTimestampLike(d: unknown): d is TimestampLike {
-  return (
-    typeof d === "object" &&
-    d !== null &&
-    "toDate" in d &&
-    typeof (d as { toDate: unknown }).toDate === "function"
-  );
+  if (!isRecord(d)) return false;
+  const m = d as Record<string, unknown>;
+  return typeof m.toDate === "function";
 }
 
 function toISO(d: unknown): string {
@@ -26,40 +27,75 @@ function toISO(d: unknown): string {
     return "";
   }
 }
+const toNumberOrUndefined = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;
+const toStringOr = (v: unknown, fallback = ""): string =>
+  typeof v === "string" ? v : fallback;
+const toBooleanOrNull = (v: unknown): boolean | null =>
+  typeof v === "boolean" ? v : null;
 
-function toNumberOrUndefined(v: unknown): number | undefined {
-  return typeof v === "number" && !Number.isNaN(v) ? v : undefined;
-}
-function toStringOr(v: unknown, fallback = ""): string {
-  return typeof v === "string" ? v : fallback;
-}
-function toBooleanOrNull(v: unknown): boolean | null {
-  return typeof v === "boolean" ? v : null;
+// 任意キーのstringプロパティ取得（any不使用）
+function getStringProp(o: unknown, key: string): string | undefined {
+  if (!isRecord(o)) return undefined;
+  const v = o[key];
+  return typeof v === "string" ? v : undefined;
 }
 
-// 返り値の型を拡張（Optional なので既存コードに影響なし）
-export function convertToProduct(doc: RawDoc): ProductType & {
+// --- offers 抽出 ------------------------------------------------------------
+const isOffer = (v: unknown): v is Offer => {
+  if (!isRecord(v)) return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r.source === "string" &&
+    typeof r.price === "number" &&
+    typeof r.url === "string" &&
+    typeof r.fetchedAt === "string"
+  );
+};
+const readOffers = (raw: unknown): Offer[] =>
+  Array.isArray(raw) ? (raw.filter(isOffer) as Offer[]) : [];
+
+const PRIORITY: Record<Offer["source"], number> = {
+  amazon: 0,
+  rakuten: 1,
+  yahoo: 2,
+};
+const pickPrimaryOffer = (offers: Offer[]): Offer | null =>
+  offers.length
+    ? [...offers].sort(
+        (a, b) =>
+          PRIORITY[a.source] - PRIORITY[b.source] ||
+          new Date(b.fetchedAt).getTime() - new Date(a.fetchedAt).getTime()
+      )[0] ?? null
+    : null;
+// ---------------------------------------------------------------------------
+
+export function convertToProduct(doc: Record<string, unknown>): ProductType & {
   amazonAffiliateUrl?: string | null;
   rakutenAffiliateUrl?: string | null;
 } {
-  // price
-  const priceMaybe =
-    toNumberOrUndefined(doc.price) ?? toNumberOrUndefined(doc.itemPrice);
+  const offers = readOffers(
+    isRecord(doc) ? (doc as { offers?: unknown }).offers : undefined
+  );
+  const pOffer = pickPrimaryOffer(offers);
 
-  // priceHistory
+  const priceMaybe =
+    (typeof pOffer?.price === "number" ? pOffer.price : undefined) ??
+    toNumberOrUndefined(doc.price) ??
+    toNumberOrUndefined(doc.itemPrice);
+
   const historyRaw = Array.isArray(doc.priceHistory)
-    ? (doc.priceHistory as RawDoc[])
+    ? (doc.priceHistory as Record<string, unknown>[])
     : [];
   const priceHistory = historyRaw
     .map((h) => {
-      const dateISO = toISO((h as RawDoc)?.date);
-      const p = toNumberOrUndefined((h as RawDoc)?.price);
+      const dateISO = toISO(h?.date);
+      const p = toNumberOrUndefined(h?.price);
       if (!dateISO || p === undefined) return null;
       return { date: dateISO, price: p };
     })
     .filter((x): x is { date: string; price: number } => x !== null);
 
-  // 在庫・レビュー
   const inStock =
     toBooleanOrNull(doc.inStock) ??
     (typeof doc.availability === "number"
@@ -68,12 +104,10 @@ export function convertToProduct(doc: RawDoc): ProductType & {
   const reviewAverage = toNumberOrUndefined(doc.reviewAverage) ?? null;
   const reviewCount = toNumberOrUndefined(doc.reviewCount) ?? null;
 
-  // 追加：必須フィールド
   const views = typeof doc.views === "number" ? (doc.views as number) : 0;
   const createdAtISO = toISO(doc.createdAt) || new Date().toISOString();
   const updatedAtISO = toISO(doc.updatedAt) || createdAtISO;
 
-  // 追加で受け取りたいアフィリンク（存在すれば素通し）
   const amazonAffiliateUrl =
     toStringOr(doc.amazonAffiliateUrl ?? "", "") || null;
   const rakutenAffiliateUrl =
@@ -84,12 +118,13 @@ export function convertToProduct(doc: RawDoc): ProductType & {
     rakutenAffiliateUrl?: string | null;
   } = {
     id: toStringOr(doc.id),
-    productName: toStringOr(doc.productName ?? doc.itemName, ""),
+    productName: toStringOr(
+      doc.productName ?? getStringProp(doc, "itemName"),
+      ""
+    ),
     imageUrl: toStringOr(doc.imageUrl, "/no-image.png"),
 
-    // ProductType.price が number のため 0 をフォールバック
     price: priceMaybe ?? 0,
-    // あなたの ProductType に itemPrice があるなら残す（なければ削除OK）
     itemPrice: priceMaybe,
 
     tags: Array.isArray(doc.tags)
@@ -102,20 +137,19 @@ export function convertToProduct(doc: RawDoc): ProductType & {
     capacity: toNumberOrUndefined(doc.capacity),
     outputPower: toNumberOrUndefined(doc.outputPower),
     hasTypeC: Boolean(doc.hasTypeC),
-    affiliateUrl: toStringOr(doc.affiliateUrl, ""),
 
-    // ★ バッジ用
+    // offers優先
+    affiliateUrl: (pOffer?.url ?? toStringOr(doc.affiliateUrl, "")) as string,
+
     inStock,
     reviewAverage,
     reviewCount,
     priceHistory,
 
-    // ★ ProductType で必須の3つ
     views,
     createdAt: createdAtISO,
     updatedAt: updatedAtISO,
 
-    // ★ 追加（Optional）
     amazonAffiliateUrl,
     rakutenAffiliateUrl,
   };

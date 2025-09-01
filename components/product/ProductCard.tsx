@@ -1,23 +1,24 @@
 "use client";
 
 import type { ProductType } from "@/types/product";
-import type { PriceHistoryEntry } from "@/types/monitoredItem";
+import type { PriceHistoryEntry, Offer } from "@/types/monitoredItem";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge as UiBadge } from "@/components/ui/badge";
 import Image from "next/image";
 import Link from "next/link";
 import { computeBadges } from "@/utils/badges";
 import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
+import { primaryOffer, offerBySource, affiliateHost } from "@/utils/offers";
 
 type ProductWithHistory = ProductType & {
   priceHistory?: PriceHistoryEntry[];
   inStock?: boolean | null;
   reviewAverage?: number | null;
   reviewCount?: number | null;
-
-  // 追加で扱う可能性のあるフィールド
-  amazonAffiliateUrl?: string | null;
-  rakutenAffiliateUrl?: string | null;
+  // ▼ 追加
+  offers?: Offer[];
+  amazonAffiliateUrl?: string | null; // 旧互換
+  rakutenAffiliateUrl?: string | null; // 旧互換
 };
 
 type Props = { product: ProductWithHistory };
@@ -33,32 +34,47 @@ const track = (event: string, params: Record<string, unknown>) => {
     window.gtag("event", event, params);
   }
 };
-
-const getAffiliateSource = (url?: string | null): string | undefined => {
-  if (!url) return undefined;
-  try {
-    const host = new URL(url).hostname;
-    if (host.includes("rakuten")) return "rakuten";
-    if (host.includes("amazon")) return "amazon";
-    if (host.includes("shopping.yahoo")) return "yahoo";
-    return host;
-  } catch {
-    return undefined;
-  }
-};
 // ----------------------------------------------------------------------------
 
 export default function ProductCard({ product }: Props) {
+  // --- オファー決定（優先：Amazon > Rakuten > Yahoo） ---
+  const pOffer = primaryOffer(product.offers);
+  const offerAmazon = offerBySource(product.offers, "amazon");
+  const offerRakuten = offerBySource(product.offers, "rakuten");
+
+  // --- 表示価格（offers優先、なければ旧price）
+  const priceNumber =
+    typeof pOffer?.price === "number"
+      ? pOffer.price
+      : typeof product.price === "number" && product.price > 0
+      ? product.price
+      : undefined;
+
+  // --- CTAリンク（offers優先、旧互換もフォールバック）
+  const amazonUrl = offerAmazon?.url ?? product.amazonAffiliateUrl ?? null;
+
+  const rakutenUrl =
+    offerRakuten?.url ??
+    product.rakutenAffiliateUrl ??
+    (product.affiliateUrl && affiliateHost(product.affiliateUrl) === "rakuten"
+      ? product.affiliateUrl
+      : null);
+
+  const fallbackUrl =
+    !rakutenUrl && !amazonUrl
+      ? pOffer?.url ?? product.affiliateUrl ?? null
+      : null;
+
   // --- バッジ ---
   const badges = computeBadges({
-    currentPrice: typeof product.price === "number" ? product.price : undefined,
+    currentPrice: priceNumber,
     history: product.priceHistory ?? [],
     inStock: product.inStock ?? undefined,
     reviewAverage: product.reviewAverage ?? undefined,
     reviewCount: product.reviewCount ?? undefined,
   });
 
-  // --- 価格の補助情報（過去最安 / 平均比）---
+  // --- 価格補助（過去最安 / 平均比）---
   const hist = (product.priceHistory ?? [])
     .slice()
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -71,11 +87,6 @@ export default function ProductCard({ product }: Props) {
 
   const img800 = upgradeRakutenImageUrl(product.imageUrl, 800);
 
-  const priceNumber =
-    typeof product.price === "number" && product.price > 0
-      ? product.price
-      : undefined;
-
   const handleCardClick = () => {
     track("product_card_click", {
       item_id: product.id,
@@ -85,30 +96,16 @@ export default function ProductCard({ product }: Props) {
     });
   };
 
-  // クリック時にURLごとに送信
   const sendAffiliateEvent = (url?: string | null) => {
     if (!url) return;
     track("affiliate_click", {
       item_id: product.id,
       item_name: product.productName,
       price: priceNumber,
-      affiliate_source: getAffiliateSource(url),
+      affiliate_source: affiliateHost(url),
       value: 1,
     });
   };
-
-  // 表示用リンクの決定
-  const rakutenUrl =
-    product.rakutenAffiliateUrl ??
-    (product.affiliateUrl &&
-    getAffiliateSource(product.affiliateUrl) === "rakuten"
-      ? product.affiliateUrl
-      : null);
-
-  const amazonUrl = product.amazonAffiliateUrl ?? null;
-
-  const fallbackUrl =
-    !rakutenUrl && !amazonUrl ? product.affiliateUrl ?? null : null;
 
   return (
     <Card className="hover:shadow-lg transition-shadow duration-200">
@@ -221,7 +218,7 @@ export default function ProductCard({ product }: Props) {
               </a>
             )}
 
-            {/* どちらも無ければ従来の1ボタン */}
+            {/* どちらも無ければ1ボタン */}
             {!rakutenUrl && !amazonUrl && fallbackUrl && (
               <a
                 href={fallbackUrl}

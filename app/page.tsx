@@ -2,140 +2,81 @@
 import Link from "next/link";
 import Image from "next/image";
 import { dbAdmin } from "@/lib/firebaseAdmin";
-import type { ProductType, PriceHistoryEntry } from "@/types/product";
+import { convertToProduct } from "@/utils/convertToProduct";
+import type { ProductType } from "@/types/product";
+import type { Offer } from "@/types/monitoredItem";
 import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
-
 import ConditionNav from "@/components/sections/ConditionNav";
 import { TAG_ORDER, TAGS } from "@/app/tags/tagConfig";
+import { primaryOffer, offerBySource } from "@/utils/offers";
 
 export const dynamic = "force-dynamic";
 
-// -------- helpers ----------------------------------------------------------
-type FirestoreTsLike = { toDate: () => Date };
-const isFsTs = (v: unknown): v is FirestoreTsLike =>
-  typeof v === "object" &&
-  v !== null &&
-  "toDate" in (v as Record<string, unknown>) &&
-  typeof (v as FirestoreTsLike).toDate === "function";
-
-const toDateFromUnknown = (v: unknown): Date | null => {
-  if (!v) return null;
-  if (isFsTs(v)) return v.toDate();
-  const d = new Date(String(v));
-  return Number.isNaN(d.getTime()) ? null : d;
-};
-
-const isRecent = (v: unknown, days = 7): boolean => {
-  const d = toDateFromUnknown(v);
-  if (!d) return false;
-  return Date.now() - d.getTime() <= days * 24 * 60 * 60 * 1000;
-};
-
+// ---- price history 正規化だけユーティリティ ----
+type PriceHistoryEntry = { date: string; price: number };
 const normalizePriceHistory = (raw: unknown): PriceHistoryEntry[] => {
   if (!Array.isArray(raw)) return [];
   const out: PriceHistoryEntry[] = [];
   for (const e of raw) {
     const priceRaw = (e as Record<string, unknown>)?.price;
     const dateRaw = (e as Record<string, unknown>)?.date;
-
     const price =
       typeof priceRaw === "number"
         ? priceRaw
         : typeof priceRaw === "string"
         ? Number(priceRaw)
         : NaN;
-
-    const d = toDateFromUnknown(dateRaw);
-    const date = d
-      ? d.toISOString()
-      : typeof dateRaw === "string"
-      ? dateRaw
-      : "";
-
-    if (Number.isFinite(price) && date) {
-      // PriceHistoryEntry は { price: number; date: string } の想定
-      out.push({ price, date });
-    }
+    const d = dateRaw ? new Date(String(dateRaw)) : null;
+    const date =
+      d && !Number.isNaN(d.getTime())
+        ? d.toISOString()
+        : typeof dateRaw === "string"
+        ? dateRaw
+        : "";
+    if (Number.isFinite(price) && date) out.push({ price, date });
   }
   return out;
 };
 
-const computeBadges = (p: {
-  priceHistory?: PriceHistoryEntry[];
-  reviewAverage?: number;
-  reviewCount?: number;
-  inStock?: boolean;
-  restockedAt?: unknown;
-}) => {
-  const badges: string[] = [];
+// ---- offers を安全に読むための型ガード ----
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
 
-  const ph = Array.isArray(p.priceHistory) ? p.priceHistory : [];
-  if (ph.length >= 2) {
-    const last = ph[ph.length - 1]?.price;
-    const prev = ph[ph.length - 2]?.price;
-    if (typeof last === "number" && typeof prev === "number" && last < prev) {
-      badges.push("値下げしました");
-    }
-  }
+const isOffer = (v: unknown): v is Offer =>
+  isRecord(v) &&
+  typeof v.source === "string" &&
+  typeof v.price === "number" &&
+  typeof v.url === "string" &&
+  typeof v.fetchedAt === "string";
 
-  if (p.inStock === true && isRecent(p.restockedAt, 7)) {
-    badges.push("在庫復活");
-  }
-
-  if (
-    typeof p.reviewAverage === "number" &&
-    typeof p.reviewCount === "number" &&
-    p.reviewAverage >= 4.5 &&
-    p.reviewCount >= 50
-  ) {
-    badges.push("高評価 4.5★以上");
-  }
-
-  return badges;
+const readOffers = (obj: unknown): Offer[] => {
+  if (!isRecord(obj)) return [];
+  const raw = (obj as { offers?: unknown }).offers;
+  return Array.isArray(raw) ? raw.filter(isOffer) : [];
 };
 
-// -------- page -------------------------------------------------------------
 export default async function Home() {
   // 新着商品 6件
-  const productSnap = await dbAdmin
+  const snap = await dbAdmin
     .collection("monitoredItems")
     .orderBy("createdAt", "desc")
     .limit(6)
     .get();
 
-  const products = productSnap.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      productName: (data.productName ??
-        data.displayName ??
-        "名称不明") as string,
-      imageUrl: (data.imageUrl ?? "") as string,
-      itemPrice: (data.itemPrice ?? data.price ?? undefined) as
-        | number
-        | undefined,
-      affiliateUrl: (data.affiliateUrl ?? "") as string,
-      tags: (data.tags ?? []) as string[],
+  // convertToProduct は affiliateUrl/price を offers 優先で整形してくれる
+  const products: (ProductType & { priceHistory?: PriceHistoryEntry[] })[] =
+    snap.docs.map((d) => {
+      const base = convertToProduct({ id: d.id, ...d.data() });
+      // JSON-LDやバッジ用に履歴だけ安全に整形
+      return {
+        ...base,
+        priceHistory: normalizePriceHistory(
+          (d.data() as { priceHistory?: unknown }).priceHistory
+        ),
+      };
+    });
 
-      // バッジ用
-      priceHistory: normalizePriceHistory(data.priceHistory),
-      reviewAverage: (data.reviewAverage ?? undefined) as number | undefined,
-      reviewCount: (data.reviewCount ?? undefined) as number | undefined,
-      inStock: (data.inStock ?? undefined) as boolean | undefined,
-      restockedAt: (data.restockedAt ??
-        data.stockRestockedAt ??
-        undefined) as unknown,
-    } satisfies Partial<ProductType> & {
-      id: string;
-      priceHistory?: PriceHistoryEntry[];
-      reviewAverage?: number;
-      reviewCount?: number;
-      inStock?: boolean;
-      restockedAt?: unknown;
-    };
-  });
-
-  // 人気ブログ 3件（views降順）
+  // 人気ブログ 3件
   const blogSnap = await dbAdmin
     .collection("blogs")
     .where("status", "==", "published")
@@ -187,12 +128,28 @@ export default async function Home() {
             すべて見る
           </Link>
         </div>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
           {products.map((p) => {
             const img = p.imageUrl
               ? upgradeRakutenImageUrl(p.imageUrl, 600)
               : "/no-image.png";
-            const badges = computeBadges(p);
+
+            // offers から最優先価格/リンクを再確認（convertToProduct 済みだが明示）
+            const offers = readOffers(p);
+            const po = primaryOffer(offers) ?? null;
+
+            const price =
+              typeof po?.price === "number"
+                ? po.price
+                : typeof p.price === "number" && p.price > 0
+                ? p.price
+                : undefined;
+
+            const rakutenUrl =
+              offerBySource(offers, "rakuten")?.url ??
+              (p.affiliateUrl || undefined);
+
             return (
               <div key={p.id} className="group">
                 <Link href={`/product/${p.id}`}>
@@ -206,21 +163,9 @@ export default async function Home() {
                       priority
                       className="transition-transform group-hover:scale-105"
                     />
-                    {/* バッジ */}
-                    <div className="absolute top-2 left-2 flex flex-col gap-1">
-                      {badges.slice(0, 2).map((b) => (
-                        <span
-                          key={b}
-                          className="rounded bg-black/80 text-white text-[10px] px-2 py-1"
-                        >
-                          {b}
-                        </span>
-                      ))}
-                    </div>
-                    {/* 価格 */}
-                    {typeof p.itemPrice === "number" && (
+                    {typeof price === "number" && (
                       <div className="absolute bottom-2 left-2 rounded-md bg-white/90 px-2 py-1 text-xs font-medium">
-                        ¥{p.itemPrice.toLocaleString()}
+                        ¥{price.toLocaleString()}
                       </div>
                     )}
                   </div>
@@ -230,10 +175,9 @@ export default async function Home() {
                   <p className="mt-2 line-clamp-2 text-sm">{p.productName}</p>
                 </Link>
 
-                {/* 最安へ */}
-                {p.affiliateUrl && (
+                {rakutenUrl && (
                   <a
-                    href={p.affiliateUrl}
+                    href={rakutenUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-block w-full text-center px-3 py-1 text-sm rounded-md bg-black text-white hover:bg-gray-800"

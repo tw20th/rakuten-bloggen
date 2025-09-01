@@ -1,6 +1,8 @@
+// app/product/[id]/page.tsx
 import { dbAdmin } from "@/lib/firebaseAdmin";
 import { convertToProduct } from "@/utils/convertToProduct";
 import type { ProductType } from "@/types/product";
+import type { Offer } from "@/types/monitoredItem";
 import Image from "next/image";
 import Link from "next/link";
 import { productJsonLd, type SimpleOffer } from "@/lib/seo/jsonld";
@@ -8,14 +10,31 @@ import { computeBadges } from "@/utils/badges";
 import { BackLink } from "@/components/common/BackLink";
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import { AffiliateCTA } from "@/components/product/AffiliateCTA";
-// 画像改善
 import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
+import { primaryOffer, offerBySource } from "@/utils/offers";
 
-// このページだけで amazon/rakuten の拡張フィールドを扱えるように型を拡張
 type ProductWithAff = ProductType & {
   amazonAffiliateUrl?: string | null;
   rakutenAffiliateUrl?: string | null;
 };
+
+// --- 型ガード ---------------------------------------------------------------
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
+
+const isOffer = (v: unknown): v is Offer => {
+  if (!isRecord(v)) return false;
+  return (
+    typeof v.source === "string" &&
+    typeof v.price === "number" &&
+    typeof v.url === "string" &&
+    typeof v.fetchedAt === "string"
+  );
+};
+
+const readOffers = (raw: unknown): Offer[] =>
+  Array.isArray(raw) ? (raw.filter(isOffer) as Offer[]) : [];
+// ---------------------------------------------------------------------------
 
 export default async function ProductDetailPage({
   params,
@@ -33,31 +52,44 @@ export default async function ProductDetailPage({
     ...data,
   }) as ProductWithAff;
 
+  // --- offers を優先して表示値・CTAを決定 ---
+  const offers: Offer[] = readOffers(
+    isRecord(data) && "offers" in data
+      ? (data as { offers?: unknown }).offers
+      : undefined
+  );
+  const pOffer = primaryOffer(offers);
+  const offerAmazon = offerBySource(offers, "amazon");
+  const offerRakuten = offerBySource(offers, "rakuten");
+
+  const displayPrice =
+    typeof pOffer?.price === "number"
+      ? pOffer.price
+      : typeof product.price === "number"
+      ? product.price
+      : undefined;
+
+  const amazonUrl = offerAmazon?.url ?? product.amazonAffiliateUrl ?? null;
+  const rakutenUrl =
+    offerRakuten?.url ??
+    (product.affiliateUrl?.includes("rakuten") ? product.affiliateUrl : null);
+
+  // JSON-LD：offers があれば優先
+  const jsonLdOffers: SimpleOffer[] =
+    offers.length > 0
+      ? offers.map((o) => ({ price: o.price, url: o.url }))
+      : typeof product.itemPrice === "number" && !!product.affiliateUrl
+      ? [{ price: product.itemPrice, url: product.affiliateUrl }]
+      : [];
+
+  const jsonLd = productJsonLd({ ...product, offers: jsonLdOffers });
+
   const badges = computeBadges({
-    currentPrice: typeof product.price === "number" ? product.price : undefined,
+    currentPrice: displayPrice,
     history: product.priceHistory ?? [],
     inStock: product.inStock ?? undefined,
     reviewAverage: product.reviewAverage ?? undefined,
     reviewCount: product.reviewCount ?? undefined,
-  });
-
-  const offersFromDoc: SimpleOffer[] | undefined = Array.isArray(
-    (data as { offers?: SimpleOffer[] }).offers
-  )
-    ? (data as { offers?: SimpleOffer[] }).offers
-    : undefined;
-
-  const fallbackSingleOffer: SimpleOffer[] =
-    typeof product.itemPrice === "number" && !!product.affiliateUrl
-      ? [{ price: product.itemPrice, url: product.affiliateUrl }]
-      : [];
-
-  const jsonLd = productJsonLd({
-    ...product,
-    offers:
-      offersFromDoc && offersFromDoc.length > 0
-        ? offersFromDoc
-        : fallbackSingleOffer,
   });
 
   const crumbs = [
@@ -99,17 +131,9 @@ export default async function ProductDetailPage({
       ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
       : undefined;
 
-  // 高解像度画像URL（無ければ空→fallbackでno-image）
   const imgHi = product.imageUrl
     ? upgradeRakutenImageUrl(product.imageUrl, 1000)
     : "";
-
-  // ▼ ボタン用URLの決定（存在すれば表示）
-  const rakutenUrl =
-    product.rakutenAffiliateUrl ??
-    (product.affiliateUrl?.includes("rakuten") ? product.affiliateUrl : null);
-
-  const amazonUrl = product.amazonAffiliateUrl ?? null;
 
   return (
     <main className="max-w-4xl mx-auto p-6">
@@ -138,7 +162,6 @@ export default async function ProductDetailPage({
 
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-1/2">
-          {/* 正方形エリアでボケないように contain */}
           <div className="relative w-full aspect-square bg-white rounded-lg shadow">
             <Image
               src={imgHi || "/no-image.png"}
@@ -154,25 +177,24 @@ export default async function ProductDetailPage({
         <div className="w-full md:w-1/2 space-y-2 text-base">
           <p>
             <strong>価格:</strong>{" "}
-            {typeof product.price === "number" && product.price > 0
-              ? `¥${product.price.toLocaleString()}`
+            {typeof displayPrice === "number" && displayPrice > 0
+              ? `¥${displayPrice.toLocaleString()}`
               : "ー"}
           </p>
 
-          {/* 価格補助行 */}
-          {typeof product.price === "number" &&
+          {typeof displayPrice === "number" &&
             (minPast !== undefined || avgPast !== undefined) && (
               <p className="text-sm text-gray-600">
                 {minPast !== undefined &&
-                  (product.price <= minPast
+                  (displayPrice <= minPast
                     ? "過去最安値です"
                     : `過去最安: ¥${minPast.toLocaleString()}`)}
                 {avgPast !== undefined && (
                   <>
                     {minPast !== undefined ? " / " : ""}
-                    平均比: {Math.sign(product.price - avgPast) < 0 ? "−" : "+"}
+                    平均比: {Math.sign(displayPrice - avgPast) < 0 ? "−" : "+"}
                     {Math.abs(
-                      Math.round(((product.price - avgPast) / avgPast) * 100)
+                      Math.round(((displayPrice - avgPast) / avgPast) * 100)
                     )}
                     %
                   </>
@@ -224,7 +246,7 @@ export default async function ProductDetailPage({
               </div>
             )}
 
-          {/* ▼ CTA：楽天 / Amazon を並べて表示（どちらか一方だけでもOK） */}
+          {/* CTA：Amazon / 楽天（両方 or 片方 or 旧互換） */}
           {(rakutenUrl || amazonUrl || product.affiliateUrl) && (
             <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {rakutenUrl && (
@@ -232,40 +254,25 @@ export default async function ProductDetailPage({
                   href={rakutenUrl}
                   itemId={product.id}
                   itemName={product.productName}
-                  price={
-                    typeof product.price === "number"
-                      ? product.price
-                      : undefined
-                  }
+                  price={displayPrice}
                   label="楽天で見る"
                 />
               )}
-
               {amazonUrl && (
                 <AffiliateCTA
                   href={amazonUrl}
                   itemId={product.id}
                   itemName={product.productName}
-                  price={
-                    typeof product.price === "number"
-                      ? product.price
-                      : undefined
-                  }
+                  price={displayPrice}
                   label="Amazonで見る"
                 />
               )}
-
-              {/* どちらも無ければ従来の affiliateUrl を1ボタンで */}
               {!rakutenUrl && !amazonUrl && product.affiliateUrl && (
                 <AffiliateCTA
                   href={product.affiliateUrl}
                   itemId={product.id}
                   itemName={product.productName}
-                  price={
-                    typeof product.price === "number"
-                      ? product.price
-                      : undefined
-                  }
+                  price={displayPrice}
                   label="最安値を今すぐチェック"
                 />
               )}
