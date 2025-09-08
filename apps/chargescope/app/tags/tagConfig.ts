@@ -1,4 +1,3 @@
-// app/tags/tagConfig.ts
 export type TagKey = "lightweight" | "large-capacity" | "fast-charge";
 
 export type TagDef = {
