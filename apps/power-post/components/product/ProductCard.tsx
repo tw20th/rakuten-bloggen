@@ -1,0 +1,239 @@
+"use client";
+
+import type { ProductType } from "@/types/product";
+import type { PriceHistoryEntry, Offer } from "@/types/monitoredItem";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge as UiBadge } from "@/components/ui/badge";
+import Image from "next/image";
+import Link from "next/link";
+import { computeBadges } from "@/utils/badges";
+import { upgradeRakutenImageUrl } from "@/utils/upgradeRakutenImageUrl";
+import { primaryOffer, offerBySource, affiliateHost } from "@/utils/offers";
+
+type ProductWithHistory = ProductType & {
+  priceHistory?: PriceHistoryEntry[];
+  inStock?: boolean | null;
+  reviewAverage?: number | null;
+  reviewCount?: number | null;
+  // ▼ 追加
+  offers?: Offer[];
+  amazonAffiliateUrl?: string | null; // 旧互換
+  rakutenAffiliateUrl?: string | null; // 旧互換
+};
+
+type Props = { product: ProductWithHistory };
+
+// ---- GA4 helper ------------------------------------------------------------
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+const track = (event: string, params: Record<string, unknown>) => {
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    window.gtag("event", event, params);
+  }
+};
+// ----------------------------------------------------------------------------
+
+export default function ProductCard({ product }: Props) {
+  // --- オファー決定（優先：Amazon > Rakuten > Yahoo） ---
+  const pOffer = primaryOffer(product.offers);
+  const offerAmazon = offerBySource(product.offers, "amazon");
+  const offerRakuten = offerBySource(product.offers, "rakuten");
+
+  // --- 表示価格（offers優先、なければ旧price）
+  const priceNumber =
+    typeof pOffer?.price === "number"
+      ? pOffer.price
+      : typeof product.price === "number" && product.price > 0
+      ? product.price
+      : undefined;
+
+  // --- CTAリンク（offers優先、旧互換もフォールバック）
+  const amazonUrl = offerAmazon?.url ?? product.amazonAffiliateUrl ?? null;
+
+  const rakutenUrl =
+    offerRakuten?.url ??
+    product.rakutenAffiliateUrl ??
+    (product.affiliateUrl && affiliateHost(product.affiliateUrl) === "rakuten"
+      ? product.affiliateUrl
+      : null);
+
+  const fallbackUrl =
+    !rakutenUrl && !amazonUrl
+      ? pOffer?.url ?? product.affiliateUrl ?? null
+      : null;
+
+  // --- バッジ ---
+  const badges = computeBadges({
+    currentPrice: priceNumber,
+    history: product.priceHistory ?? [],
+    inStock: product.inStock ?? undefined,
+    reviewAverage: product.reviewAverage ?? undefined,
+    reviewCount: product.reviewCount ?? undefined,
+  });
+
+  // --- 価格補助（過去最安 / 平均比）---
+  const hist = (product.priceHistory ?? [])
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const pastPrices = hist.map((h) => h.price);
+  const minPast = pastPrices.length > 0 ? Math.min(...pastPrices) : undefined;
+  const avgPast =
+    pastPrices.length > 0
+      ? Math.round(pastPrices.reduce((s, v) => s + v, 0) / pastPrices.length)
+      : undefined;
+
+  const img800 = upgradeRakutenImageUrl(product.imageUrl, 800);
+
+  const handleCardClick = () => {
+    track("product_card_click", {
+      item_id: product.id,
+      item_name: product.productName,
+      price: priceNumber,
+      list: "product_list",
+    });
+  };
+
+  const sendAffiliateEvent = (url?: string | null) => {
+    if (!url) return;
+    track("affiliate_click", {
+      item_id: product.id,
+      item_name: product.productName,
+      price: priceNumber,
+      affiliate_source: affiliateHost(url),
+      value: 1,
+    });
+  };
+
+  return (
+    <Card className="hover:shadow-lg transition-shadow duration-200">
+      <Link
+        href={`/product/${product.id}`}
+        className="block"
+        onClick={handleCardClick}
+        aria-label={`${product.productName} の詳細を見る`}
+      >
+        <div className="relative">
+          <div className="relative w-full h-48 bg-white">
+            <Image
+              src={img800 || "/no-image.png"}
+              alt={product.productName}
+              fill
+              style={{ objectFit: "contain" }}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            />
+          </div>
+
+          {/* バッジ（画像の左上） */}
+          {badges.length > 0 && (
+            <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+              {badges.map((b, i) => (
+                <span
+                  key={`${b.type}-${i}`}
+                  className={
+                    b.type === "price-drop"
+                      ? "bg-green-100 text-green-700 px-2 py-0.5 text-xs rounded-full"
+                      : b.type === "lowest-update"
+                      ? "bg-blue-100 text-blue-700 px-2 py-0.5 text-xs rounded-full"
+                      : b.type === "high-rating"
+                      ? "bg-yellow-100 text-yellow-700 px-2 py-0.5 text-xs rounded-full"
+                      : "bg-amber-100 text-amber-700 px-2 py-0.5 text-xs rounded-full"
+                  }
+                >
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <CardContent className="space-y-2 px-4 pb-3">
+          <h2 className="text-base font-semibold line-clamp-2">
+            {product.productName}
+          </h2>
+
+          <div className="text-lg font-bold text-red-600">
+            {priceNumber ? `¥${priceNumber.toLocaleString()}` : "価格情報なし"}
+          </div>
+
+          {/* ▼ 価格補助（過去最安 / 平均比） */}
+          {priceNumber && (minPast !== undefined || avgPast !== undefined) && (
+            <p className="text-xs text-gray-600">
+              {minPast !== undefined &&
+                (priceNumber <= minPast
+                  ? "過去最安"
+                  : `過去最安: ¥${minPast.toLocaleString()}`)}
+              {avgPast !== undefined && (
+                <>
+                  {minPast !== undefined ? " / " : ""}
+                  平均比: {Math.sign(priceNumber - avgPast) < 0 ? "−" : "+"}
+                  {Math.abs(
+                    Math.round(((priceNumber - avgPast) / avgPast) * 100)
+                  )}
+                  %
+                </>
+              )}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-1">
+            {(product.tags ?? []).slice(0, 3).map((tag) => (
+              <UiBadge key={tag} className="text-xs" variant="outline">
+                {tag}
+              </UiBadge>
+            ))}
+          </div>
+        </CardContent>
+      </Link>
+
+      {/* 外部リンクCTA */}
+      {(rakutenUrl || amazonUrl || fallbackUrl) && (
+        <div className="px-4 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {rakutenUrl && (
+              <a
+                href={rakutenUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendAffiliateEvent(rakutenUrl)}
+                className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
+                aria-label="楽天で見る（外部サイト）"
+              >
+                楽天で見る
+              </a>
+            )}
+
+            {amazonUrl && (
+              <a
+                href={amazonUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendAffiliateEvent(amazonUrl)}
+                className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
+                aria-label="Amazonで見る（外部サイト）"
+              >
+                Amazonで見る
+              </a>
+            )}
+
+            {/* どちらも無ければ1ボタン */}
+            {!rakutenUrl && !amazonUrl && fallbackUrl && (
+              <a
+                href={fallbackUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => sendAffiliateEvent(fallbackUrl)}
+                className="inline-flex items-center justify-center w-full rounded-xl border px-3 py-2 text-sm font-medium hover:bg-gray-50 transition"
+                aria-label="最安値を今すぐチェック（外部サイト）"
+              >
+                最安値を今すぐチェック
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
