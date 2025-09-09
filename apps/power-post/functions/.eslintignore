@@ -1,0 +1,4 @@
+# functions/.eslintignore
+lib/
+eslint.config.js
+.eslintrc.cjs
